@@ -1,0 +1,5 @@
+- Bin types and purposes
+- Capacity management
+- SKU grouping rules
+- Zone organization
+- Movement optimization 

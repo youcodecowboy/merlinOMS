@@ -1,0 +1,394 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  WAREHOUSE
+  QC_TEAM
+  PATTERN_MAKER
+  CUTTING_TEAM
+  SEWING_TEAM
+  WASH_TEAM
+}
+
+enum RequestType {
+  PATTERN
+  CUTTING
+  WASH
+  QC
+  FINISHING
+  PACKING
+  MOVE
+}
+
+enum RequestStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum BinType {
+  STORAGE
+  PROCESSING
+  SHIPPING
+  TEMPORARY
+}
+
+enum OrderStatus {
+  NEW
+  PROCESSING
+  IN_PRODUCTION
+  WASH
+  QC
+  FINISHING
+  PACKING
+  COMPLETED
+  CANCELLED
+}
+
+enum WashGroup {
+  LIGHT
+  DARK
+}
+
+enum WashCode {
+  RAW  // Universal light wash
+  BRW  // Universal dark wash
+  STA  // Standard
+  IND  // Indigo
+  ONX  // Onyx
+  JAG  // Jaguar
+}
+
+enum Status1 {
+  PRODUCTION
+  STOCK
+  WASH
+}
+
+enum Status2 {
+  UNCOMMITTED
+  COMMITTED
+  ASSIGNED
+}
+
+enum OrderItemStatus {
+  NEW
+  PENDING_ASSIGNMENT
+  ASSIGNED
+  IN_PRODUCTION
+  IN_WASH
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id                String            @id @default(uuid())
+  email             String            @unique
+  password          String
+  role              UserRole          @default(WAREHOUSE)
+  created_at        DateTime          @default(now())
+  updated_at        DateTime          @updatedAt
+  events            Event[]
+  notifications     Notification[]
+  auth_tokens       AuthToken[]
+  request_timelines RequestTimeline[]
+  status_changes    StatusHistory[]
+  profile           UserProfile?
+}
+
+model UserProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
+  firstName   String?
+  lastName    String?
+  phoneNumber String?
+  photoUrl    String?
+  settings    Json?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+}
+
+model Customer {
+  id         String           @id @default(uuid())
+  email      String           @unique
+  profile    CustomerProfile?
+  orders     Order[]
+  created_at DateTime         @default(now())
+  updated_at DateTime         @updatedAt
+}
+
+model CustomerProfile {
+  id         String   @id @default(uuid())
+  customerId String   @unique
+  customer   Customer @relation(fields: [customerId], references: [id])
+  metadata   Json
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  shopify_id  String      @unique
+  status      String      @default("NEW")
+  customer_id String
+  customer    Customer    @relation(fields: [customer_id], references: [id])
+  order_items OrderItem[]
+  requests    Request[]
+  events      Event[]
+  metadata    Json?
+  created_at  DateTime    @default(now())
+  updated_at  DateTime    @updatedAt
+}
+
+model OrderItem {
+  id               String         @id @default(uuid())
+  order_id         String
+  order            Order          @relation(fields: [order_id], references: [id])
+  target_sku       String
+  quantity         Int            @default(1)
+  status           String
+  assigned_item_id String?        @unique
+  assigned_item    InventoryItem? @relation("OrderAssignment", fields: [assigned_item_id], references: [id])
+  waitlist_entry   ProductionWaitlist?
+  created_at       DateTime       @default(now())
+  updated_at       DateTime       @updatedAt
+}
+
+model InventoryItem {
+  id               String     @id @default(uuid())
+  sku              String
+  status1          String
+  status2          String
+  location         String
+  qr_code          String?    @unique
+  current_bin      Bin?       @relation("BinItems", fields: [bin_id], references: [id])
+  bin_id           String?
+  order_assignment OrderItem? @relation("OrderAssignment")
+  requests         Request[]
+  events           Event[]
+  metadata         Json?
+  created_at       DateTime   @default(now())
+  updated_at       DateTime   @updatedAt
+
+  @@index([status1, status2])
+  @@index([sku])
+  @@index([location])
+}
+
+model Bin {
+  id            String          @id @default(uuid())
+  code          String          @unique
+  sku           String          @unique
+  type          BinType
+  zone          String
+  capacity      Int
+  current_count Int             @default(0)
+  is_active     Boolean         @default(true)
+  items         InventoryItem[] @relation("BinItems")
+  history       BinHistory[]
+  qr_code       String?         @unique
+  metadata      Json?
+  created_at    DateTime        @default(now())
+  updated_at    DateTime        @updatedAt
+}
+
+model BinHistory {
+  id         String   @id @default(uuid())
+  bin_id     String
+  bin        Bin      @relation(fields: [bin_id], references: [id])
+  action     String
+  metadata   Json?
+  created_at DateTime @default(now())
+}
+
+model Request {
+  id            String            @id @default(uuid())
+  type          RequestType
+  status        RequestStatus
+  item_id       String?
+  item          InventoryItem?    @relation(fields: [item_id], references: [id])
+  order_id      String?
+  order         Order?            @relation(fields: [order_id], references: [id])
+  batch_id      String?
+  batch         Batch?            @relation(fields: [batch_id], references: [id])
+  metadata      Json?
+  events        Event[]
+  notifications Notification[]
+  created_at    DateTime          @default(now())
+  updated_at    DateTime          @updatedAt
+  timeline      RequestTimeline[]
+  timelines     Timeline[]
+
+  @@index([status, type])
+  @@index([created_at])
+}
+
+model Event {
+  id         String         @id @default(uuid())
+  type       String
+  actor_id   String
+  actor      User           @relation(fields: [actor_id], references: [id])
+  item_id    String?
+  item       InventoryItem? @relation(fields: [item_id], references: [id])
+  order_id   String?
+  order      Order?         @relation(fields: [order_id], references: [id])
+  request_id String?
+  request    Request?       @relation(fields: [request_id], references: [id])
+  metadata   Json?
+  created_at DateTime       @default(now())
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  type       String
+  message    String
+  user_id    String
+  user       User     @relation(fields: [user_id], references: [id])
+  request_id String?
+  request    Request? @relation(fields: [request_id], references: [id])
+  read       Boolean  @default(false)
+  metadata   Json?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+model AuthToken {
+  id         String   @id @default(uuid())
+  user_id    String
+  user       User     @relation(fields: [user_id], references: [id])
+  token      String   @unique
+  type       String   // 'refresh' or 'access'
+  expires_at DateTime
+  revoked    Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([user_id, type])
+  @@index([token, type])
+}
+
+model RequestTimeline {
+  id          String    @id @default(uuid())
+  request_id  String
+  request     Request   @relation(fields: [request_id], references: [id])
+  step        String
+  status      String
+  operator_id String
+  operator    User      @relation(fields: [operator_id], references: [id])
+  metadata    Json?
+  created_at  DateTime  @default(now())
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  @@index([request_id])
+  @@index([operator_id])
+}
+
+model StatusHistory {
+  id          String   @id @default(uuid())
+  entity_type String // 'order', 'request', 'inventory_item'
+  entity_id   String
+  old_status  String
+  new_status  String
+  changed_by  String
+  user        User     @relation(fields: [changed_by], references: [id])
+  metadata    Json?
+  created_at  DateTime @default(now())
+
+  @@index([entity_type, entity_id])
+  @@index([changed_by])
+}
+
+model Timeline {
+  id          String   @id @default(uuid())
+  requestId   String
+  request     Request  @relation(fields: [requestId], references: [id])
+  eventType   String
+  description String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([requestId])
+}
+
+model ProductionRequest {
+  id         String              @id @default(uuid())
+  sku        String
+  quantity   Int
+  status     String
+  waitlist   ProductionWaitlist[]
+  batch_id   String?
+  batch      Batch?             @relation(fields: [batch_id], references: [id])
+  created_at DateTime           @default(now())
+  updated_at DateTime           @updatedAt
+  metadata   Json?
+
+  @@index([sku, status])
+}
+
+model ProductionWaitlist {
+  id                   String           @id @default(uuid())
+  production_request_id String
+  production_request   ProductionRequest @relation(fields: [production_request_id], references: [id])
+  order_item_id       String           @unique
+  order_item          OrderItem        @relation(fields: [order_item_id], references: [id])
+  position            Int
+  created_at          DateTime         @default(now())
+  updated_at          DateTime         @updatedAt
+
+  @@index([production_request_id, position])
+}
+
+model Batch {
+  id                 String              @id @default(uuid())
+  status             String
+  style              String
+  quantity           Int
+  metadata           Json?
+  requests           Request[]
+  production_requests ProductionRequest[]
+  created_at         DateTime            @default(now())
+  updated_at         DateTime            @updatedAt
+
+  @@index([status])
+}
+
+model SKUComponent {
+  id         String   @id @default(uuid())
+  style      String
+  waist      Int
+  shape      String
+  length     Int
+  wash       WashCode
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([style, waist, shape, length, wash])
+  @@index([style, waist, shape])
+}
+
+model WashMapping {
+  id            String    @id @default(uuid())
+  target_wash   String    // e.g. 'STA', 'IND'
+  source_wash   String    // e.g. 'RAW', 'BRW'
+  wash_group    WashGroup
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  @@unique([target_wash, source_wash])
+  @@index([wash_group])
+}
+
+// Rest of your schema... 

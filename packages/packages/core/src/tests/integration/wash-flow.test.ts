@@ -1,0 +1,1 @@
+// Similar structure for testing wash placement and post-wash activation 

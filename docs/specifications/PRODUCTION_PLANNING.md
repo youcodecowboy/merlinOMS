@@ -1,0 +1,5 @@
+- Batch optimization
+- Pattern grouping criteria
+- Cutting efficiency
+- Resource allocation
+- Timeline management 

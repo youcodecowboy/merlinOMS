@@ -1,0 +1,5 @@
+- Measurement points
+- Tolerance ranges
+- Visual inspection criteria
+- Defect categories
+- Recovery procedures 
