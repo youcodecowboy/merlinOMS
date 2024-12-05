@@ -139,3 +139,43 @@ describe('OrderProcessor', () => {
 - Add debug logging in key points
 - Document common failure modes
 - Include troubleshooting steps
+
+## Recent Test Scenarios
+
+### Order Processing Paths
+Test all five critical paths:
+1. STA order with exact SKU match
+2. STA order with universal SKU match
+3. RAW order with exact SKU match
+4. RAW order with universal SKU match
+5. Order with no matches
+
+Key verification points:
+- Correct request type generation (wash vs production)
+- Proper status updates
+- No double assignments
+- Transaction integrity
+- Event logging accuracy
+
+### Production Batch Testing
+Test scenarios for batch creation:
+1. Creating batch from multiple production requests
+2. QR code generation for batch
+3. PDF label generation
+4. Batch status updates
+5. Request status synchronization
+
+### Inventory Item Testing
+Test scenarios for inventory management:
+1. QR code generation and uniqueness
+2. Item status transitions
+3. Assignment history tracking
+4. Event timeline accuracy
+5. Active request tracking
+
+### Integration Testing Priorities
+- Transaction integrity in order processing
+- Race condition prevention
+- Status synchronization across related entities
+- PDF generation reliability
+- QR code scanning and validation

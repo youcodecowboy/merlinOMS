@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pattern requests page with grouping functionality
 - Pattern to cutting request workflow
 - Real-time pattern request updates with SWR
+- QR code generation for inventory items with nanoid
+- Inventory item detail page with comprehensive view
+- Production batch system with QR code generation
+- PDF generation for production batch labels
+- Clickable QR icons in inventory table with print functionality
+- Order assignment card in inventory details
+- Active requests card in inventory details
+- Events timeline in inventory details
 
 ### Changed
 - Orders now process automatically upon creation instead of staying in 'NEW' status
@@ -29,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   3. Other cases -> PROCESSING status
 - Improved request API with better error handling and type safety
 - Enhanced table components with consistent empty states
+- Enhanced inventory item expanded view with detailed information
+- Improved order processing logic with transaction support
+- Updated wash request processing to properly set status
+- Moved QR code state management to parent component
+- Strengthened order processing to prevent double assignments
 
 ### Fixed
 - Fixed issue where new orders weren't automatically generating production requests
@@ -41,6 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Restored PRODUCTION status to schema
 - Fixed JSON metadata handling in request API
 - Fixed table empty state handling
+- Fixed runtime error with hooks in QR code component
+- Fixed wash request status updates
+- Fixed double request creation issue for STA orders
+- Fixed inventory item QR code generation
+- Fixed expanded view database connection
+- Fixed order detail page and API endpoint
 
 ### Technical Details
 - Changed production request storage from `productionRequest` table to unified `request` table
@@ -54,3 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added extensive logging throughout order processing flow
 - Implemented SWR for real-time data updates
 - Added type-safe request handling with proper metadata serialization
+- Added production batch schema and migrations
+- Implemented transaction-based order processing
+- Enhanced inventory item model with QR code support
+- Added PDF generation service for batch labels
+- Improved event tracking for inventory items

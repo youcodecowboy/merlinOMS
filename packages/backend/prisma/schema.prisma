@@ -1,0 +1,60 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model ProductionRequest {
+  id              String           @id
+  sku             String
+  quantity        Int
+  orderIdsJson    String          // Stored as JSON string
+  status          String           @default("PENDING")
+  type            String           @default("PRODUCTION")
+  requiresApproval Boolean         @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  batch           ProductionBatch? @relation(fields: [batchId], references: [id])
+  batchId         String?
+}
+
+model ProductionBatch {
+  id          String              @id
+  sku         String
+  quantity    Int
+  status      String              @default("PENDING")
+  qrCodesPdf  String?            // Store as regular string, handle large text in application layer
+  requests    ProductionRequest[]
+  items       InventoryItem[]
+  pattern     PatternRequest?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model PatternRequest {
+  id          String           @id
+  sku         String
+  quantity    Int
+  status      String          @default("PENDING")
+  batch       ProductionBatch  @relation(fields: [batchId], references: [id])
+  batchId     String          @unique
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model InventoryItem {
+  id          String           @id
+  sku         String
+  status1     String
+  status2     String
+  qrCode      String
+  location    String?
+  batch       ProductionBatch? @relation(fields: [batchId], references: [id])
+  batchId     String?
+  metadata    Json?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+} 

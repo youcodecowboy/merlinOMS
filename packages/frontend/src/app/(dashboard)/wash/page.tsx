@@ -6,6 +6,7 @@ import { DataTable } from "@/components/ui/data-table"
 import { cn } from "@/lib/utils"
 import { Timer, ArrowRight } from "lucide-react"
 import { toast } from "sonner"
+import Link from "next/link"
 
 interface WashRequest {
   id: string
@@ -16,7 +17,10 @@ interface WashRequest {
   source_location?: string
   target_bin?: string
   priority: 'LOW' | 'MEDIUM' | 'HIGH'
-  order_id?: string
+  order_id: string
+  item_status: string
+  order_status: string
+  target_sku: string
 }
 
 const columns: {
@@ -32,8 +36,19 @@ const columns: {
   },
   {
     key: "sku",
-    label: "SKU",
+    label: "Current SKU",
     sortable: true,
+    render: (value: string, row: WashRequest) => (
+      <div className="space-y-1">
+        <div className="font-mono">{value}</div>
+        {row.target_sku && row.target_sku !== value && (
+          <div className="text-xs text-muted-foreground font-mono flex items-center gap-1">
+            <ArrowRight className="h-3 w-3" />
+            {row.target_sku}
+          </div>
+        )}
+      </div>
+    )
   },
   {
     key: "status",
@@ -49,9 +64,14 @@ const columns: {
           'bg-red-500/10 text-red-500': value === 'FAILED',
         }
       )}>
-        {value}
+        {value.replace(/_/g, ' ')}
       </div>
     ),
+  },
+  {
+    key: "item_status",
+    label: "Item Status",
+    sortable: true,
   },
   {
     key: "priority",
@@ -84,6 +104,32 @@ const columns: {
     key: "order_id",
     label: "Order",
     sortable: true,
+    render: (value: string, row: WashRequest) => (
+      <div className="space-y-1">
+        <Link 
+          href={`/orders/${value}`}
+          className="hover:underline text-primary"
+        >
+          {value}
+        </Link>
+        {row.order_status && (
+          <div className={cn(
+            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+            {
+              'bg-gray-500/10 text-gray-500': row.order_status === 'NEW',
+              'bg-blue-500/10 text-blue-500': row.order_status === 'PENDING_ASSIGNMENT',
+              'bg-purple-500/10 text-purple-500': row.order_status === 'ASSIGNED',
+              'bg-yellow-500/10 text-yellow-500': row.order_status === 'IN_PRODUCTION',
+              'bg-orange-500/10 text-orange-500': row.order_status === 'IN_WASH',
+              'bg-green-500/10 text-green-500': row.order_status === 'COMPLETED',
+              'bg-red-500/10 text-red-500': row.order_status === 'CANCELLED',
+            }
+          )}>
+            {row.order_status.replace(/_/g, ' ')}
+          </div>
+        )}
+      </div>
+    ),
   },
   {
     key: "updated_at",
@@ -103,12 +149,15 @@ export default function WashPage() {
     try {
       setIsLoading(true)
       const response = await fetch('/api/wash/requests')
-      if (!response.ok) throw new Error('Failed to fetch wash requests')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to fetch wash requests')
+      }
       const data = await response.json()
       setWashRequests(data)
     } catch (error) {
       console.error('Error fetching wash requests:', error)
-      toast.error('Failed to fetch wash requests')
+      toast.error(error instanceof Error ? error.message : 'Failed to fetch wash requests')
     } finally {
       setIsLoading(false)
     }
@@ -128,13 +177,16 @@ export default function WashPage() {
         method: 'POST'
       })
 
-      if (!response.ok) throw new Error('Failed to process request')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to process request')
+      }
 
       toast.success(`Processing request ${nextRequest.id}`)
       fetchWashRequests() // Refresh the list
     } catch (error) {
       console.error('Error processing request:', error)
-      toast.error('Failed to process request')
+      toast.error(error instanceof Error ? error.message : 'Failed to process request')
     } finally {
       setIsProcessing(false)
     }
@@ -148,7 +200,7 @@ export default function WashPage() {
     // Set up polling every 5 seconds
     const interval = setInterval(fetchWashRequests, 5000)
 
-    // Cleanup interval on unmount
+    // Clean up on unmount
     return () => clearInterval(interval)
   }, [])
 
@@ -158,31 +210,22 @@ export default function WashPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Wash Requests</h1>
           <p className="text-muted-foreground">
-            Manage and track wash requests across all locations
+            Process wash requests for inventory items
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <Button variant="outline" className="gap-2">
-            <Timer className="h-4 w-4" />
-            History
-          </Button>
-          <Button 
-            onClick={processNext}
-            disabled={isProcessing || washRequests.every(req => req.status !== 'PENDING')}
-          >
-            {isProcessing ? 'Processing...' : 'Process Next'}
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
+        <Button 
+          onClick={processNext}
+          disabled={isProcessing || !washRequests.some(req => req.status === 'PENDING')}
+        >
+          <Timer className="mr-2 h-4 w-4" />
+          Process Next
+        </Button>
       </div>
 
       <DataTable
         data={washRequests}
         columns={columns}
         isLoading={isLoading}
-        onRowClick={(row) => {
-          console.log("Clicked row:", row)
-        }}
       />
     </div>
   )

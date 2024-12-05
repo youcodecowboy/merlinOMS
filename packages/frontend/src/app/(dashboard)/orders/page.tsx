@@ -4,24 +4,23 @@ import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
-import { Plus, Settings, PlayCircle, Trash } from "lucide-react"
+import { Plus, Settings, Trash } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { OrderStatus, OrderItemStatus } from "@prisma/client"
 
 interface OrderItem {
   id: string
   target_sku: string
   quantity: number
-  status: OrderItemStatus
+  status: string
   assigned_item_id?: string
 }
 
 interface Order {
   id: string
   shopify_id: string
-  status: OrderStatus
+  status: string
   customer_id: string
   customer: {
     email: string
@@ -39,14 +38,6 @@ interface Order {
     priority?: 'LOW' | 'MEDIUM' | 'HIGH'
     notes?: string
   }
-}
-
-interface ProcessingResult {
-  orderId: string
-  success: boolean
-  error?: string
-  newStatus?: OrderStatus
-  details?: string
 }
 
 const columns = [
@@ -67,17 +58,17 @@ const columns = [
     key: "status",
     label: "Status",
     sortable: true,
-    render: (value: OrderStatus) => (
+    render: (value: string) => (
       <div className={cn(
         "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
         {
-          'bg-gray-500/10 text-gray-500': value === OrderStatus.NEW,
-          'bg-blue-500/10 text-blue-500': value === OrderStatus.PENDING_ASSIGNMENT,
-          'bg-purple-500/10 text-purple-500': value === OrderStatus.ASSIGNED,
-          'bg-yellow-500/10 text-yellow-500': value === OrderStatus.IN_PRODUCTION,
-          'bg-orange-500/10 text-orange-500': value === OrderStatus.WASH,
-          'bg-green-500/10 text-green-500': value === OrderStatus.COMPLETED,
-          'bg-red-500/10 text-red-500': value === OrderStatus.CANCELLED,
+          'bg-gray-500/10 text-gray-500': value === 'NEW',
+          'bg-blue-500/10 text-blue-500': value === 'PENDING_ASSIGNMENT',
+          'bg-purple-500/10 text-purple-500': value === 'ASSIGNED',
+          'bg-yellow-500/10 text-yellow-500': value === 'IN_PRODUCTION',
+          'bg-orange-500/10 text-orange-500': value === 'WASH',
+          'bg-green-500/10 text-green-500': value === 'COMPLETED',
+          'bg-red-500/10 text-red-500': value === 'CANCELLED',
         }
       )}>
         {value.replace(/_/g, ' ')}
@@ -139,10 +130,8 @@ const columns = [
 export default function OrdersPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
-  const [isProcessing, setIsProcessing] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   const [orders, setOrders] = useState<Order[]>([])
-  const [processingResults, setProcessingResults] = useState<ProcessingResult[]>([])
 
   const fetchOrders = async () => {
     try {
@@ -159,122 +148,6 @@ export default function OrdersPage() {
       toast.error('Error loading orders')
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const processNewOrders = async () => {
-    try {
-      setIsProcessing(true)
-      setProcessingResults([])
-      const newOrders = orders.filter(order => order.status === OrderStatus.NEW)
-      
-      if (newOrders.length === 0) {
-        toast.info('No new orders to process')
-        return
-      }
-
-      const results: ProcessingResult[] = []
-
-      for (const order of newOrders) {
-        try {
-          const response = await fetch(`/api/orders/${order.id}/process`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              operatorId: '00000000-0000-0000-0000-000000000000', // System operator ID
-            }),
-          })
-
-          const result = await response.json()
-
-          if (response.ok && result.success) {
-            results.push({
-              orderId: order.id,
-              success: true,
-              newStatus: result.order.status,
-              details: result.message
-            })
-          } else {
-            results.push({
-              orderId: order.id,
-              success: false,
-              error: result.error || 'Unknown error',
-              details: result.details || 'Failed to process order'
-            })
-          }
-        } catch (error) {
-          console.error(`Error processing order ${order.id}:`, error)
-          results.push({
-            orderId: order.id,
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
-            details: 'Failed to process order'
-          })
-        }
-      }
-
-      setProcessingResults(results)
-
-      const processed = results.filter(r => r.success).length
-      const failed = results.filter(r => !r.success).length
-
-      if (processed > 0) {
-        toast.success(`Successfully processed ${processed} orders`)
-      }
-      if (failed > 0) {
-        toast.error(`Failed to process ${failed} orders`, {
-          description: 'Check the results table for details'
-        })
-      }
-
-      // Refresh the orders list
-      await fetchOrders()
-    } catch (error) {
-      console.error('Error processing orders:', error)
-      toast.error('Error processing orders')
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const retryOrder = async (orderId: string) => {
-    try {
-      const response = await fetch(`/api/orders/${orderId}/process`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operatorId: '00000000-0000-0000-0000-000000000000', // System operator ID
-        }),
-      })
-
-      const result = await response.json()
-
-      if (response.ok && result.success) {
-        toast.success(`Successfully processed order ${orderId}`)
-        setProcessingResults(prev => 
-          prev.map(r => r.orderId === orderId ? {
-            ...r,
-            success: true,
-            error: undefined,
-            newStatus: result.order.status,
-            details: result.message
-          } : r)
-        )
-      } else {
-        toast.error(`Failed to process order ${orderId}`, {
-          description: result.error || 'Unknown error'
-        })
-      }
-
-      // Refresh the orders list
-      await fetchOrders()
-    } catch (error) {
-      console.error(`Error retrying order ${orderId}:`, error)
-      toast.error(`Failed to retry order ${orderId}`)
     }
   }
 
@@ -318,14 +191,6 @@ export default function OrdersPage() {
           </p>
         </div>
         <div className="flex gap-4">
-          <Button 
-            variant="outline"
-            onClick={processNewOrders}
-            disabled={isProcessing || !orders.some(order => order.status === OrderStatus.NEW)}
-          >
-            <PlayCircle className="mr-2 h-4 w-4" />
-            {isProcessing ? 'Processing...' : 'Process New Orders'}
-          </Button>
           <Button variant="outline">
             <Settings className="mr-2 h-4 w-4" />
             Filter
@@ -357,61 +222,6 @@ export default function OrdersPage() {
           router.push(`/orders/${row.id}`)
         }}
       />
-
-      {processingResults.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-lg font-semibold mb-4">Processing Results</h2>
-          <div className="rounded-md border">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {processingResults.map((result) => (
-                  <tr key={result.orderId}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {result.orderId}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className={cn(
-                        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                        result.success
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                      )}>
-                        {result.success ? 'Success' : 'Failed'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {result.success
-                        ? `Processed - New Status: ${result.newStatus}`
-                        : result.error}
-                      <br />
-                      <span className="text-xs">{result.details}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      {!result.success && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => retryOrder(result.orderId)}
-                        >
-                          Retry
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   )
 } 

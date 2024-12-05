@@ -1,10 +1,10 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
 }
 
 enum UserRole {
@@ -19,6 +19,7 @@ enum UserRole {
 }
 
 enum RequestType {
+  PRODUCTION
   PATTERN
   CUTTING
   WASH
@@ -151,34 +152,39 @@ model Order {
 }
 
 model OrderItem {
-  id               String         @id @default(uuid())
+  id               String            @id @default(uuid())
   order_id         String
-  order            Order          @relation(fields: [order_id], references: [id])
   target_sku       String
-  quantity         Int            @default(1)
-  status           String
-  assigned_item_id String?        @unique
-  assigned_item    InventoryItem? @relation("OrderAssignment", fields: [assigned_item_id], references: [id])
+  quantity         Int
+  status           String            @default("NEW")
+  assigned_item_id String?           @unique
+  metadata         Json?             @default("{}")
+  created_at       DateTime          @default(now())
+  updated_at       DateTime          @updatedAt
+  order            Order             @relation(fields: [order_id], references: [id])
+  assigned_item    InventoryItem?    @relation("OrderAssignment", fields: [assigned_item_id], references: [id])
   waitlist_entry   ProductionWaitlist?
-  created_at       DateTime       @default(now())
-  updated_at       DateTime       @updatedAt
+
+  @@index([order_id])
 }
 
 model InventoryItem {
-  id               String     @id @default(uuid())
+  id               String           @id @default(uuid())
   sku              String
   status1          String
   status2          String
   location         String
-  qr_code          String?    @unique
-  current_bin      Bin?       @relation("BinItems", fields: [bin_id], references: [id])
+  qr_code          String          @unique
+  current_bin      Bin?            @relation("BinItems", fields: [bin_id], references: [id])
   bin_id           String?
-  order_assignment OrderItem? @relation("OrderAssignment")
+  order_assignment OrderItem?       @relation("OrderAssignment")
   requests         Request[]
   events           Event[]
   metadata         Json?
-  created_at       DateTime   @default(now())
-  updated_at       DateTime   @updatedAt
+  created_at       DateTime        @default(now())
+  updated_at       DateTime        @updatedAt
+  batch           ProductionBatch? @relation(fields: [batchId], references: [id])
+  batchId         String?
 
   @@index([status1, status2])
   @@index([sku])
@@ -324,18 +330,44 @@ model Timeline {
 }
 
 model ProductionRequest {
-  id         String              @id @default(uuid())
-  sku        String
-  quantity   Int
-  status     String
-  waitlist   ProductionWaitlist[]
-  batch_id   String?
-  batch      Batch?             @relation(fields: [batch_id], references: [id])
-  created_at DateTime           @default(now())
-  updated_at DateTime           @updatedAt
-  metadata   Json?
+  id              String           @id @default(uuid())
+  sku             String
+  quantity        Int
+  orderIdsJson    String          // Stored as JSON string
+  status          String           @default("PENDING")
+  type            String           @default("PRODUCTION")
+  requiresApproval Boolean         @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  batch           ProductionBatch? @relation(fields: [batchId], references: [id])
+  batchId         String?
+  waitlist        ProductionWaitlist[]
+  legacyBatch     Batch?          @relation(fields: [legacyBatchId], references: [id])
+  legacyBatchId   String?
+}
 
-  @@index([sku, status])
+model ProductionBatch {
+  id          String              @id @default(uuid())
+  sku         String
+  quantity    Int
+  status      String              @default("PENDING")
+  qrCodesPdf  String?            // Store as regular string, handle large text in application layer
+  requests    ProductionRequest[]
+  items       InventoryItem[]
+  pattern     PatternRequest?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model PatternRequest {
+  id          String           @id @default(uuid())
+  sku         String
+  quantity    Int
+  status      String          @default("PENDING")
+  batch       ProductionBatch  @relation(fields: [batchId], references: [id])
+  batchId     String          @unique
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 }
 
 model ProductionWaitlist {
@@ -390,5 +422,3 @@ model WashMapping {
   @@unique([target_wash, source_wash])
   @@index([wash_group])
 }
-
-// Rest of your schema... 

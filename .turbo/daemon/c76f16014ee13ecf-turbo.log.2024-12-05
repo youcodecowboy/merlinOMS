@@ -1,0 +1,46 @@
+2024-12-05T20:23:01.472729Z  INFO turborepo_lib::daemon::server: triggering shutdown
+2024-12-05T20:23:01.687470Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf(".turbo/cookies/.turbo-cookie")}
+2024-12-05T20:23:01.687477Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Root, path: AnchoredSystemPathBuf("") }}))
+2024-12-05T20:23:01.888848Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf(".turbo/daemon/c76f16014ee13ecf-turbo.log.2024-12-05")}
+2024-12-05T20:23:01.888857Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Root, path: AnchoredSystemPathBuf("") }}))
+2024-12-05T20:24:33.535371Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/src/app/api/production/batches/route.ts")}
+2024-12-05T20:24:33.541870Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:24:33.788280Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/src/app/api/production/batches/route.ts")}
+2024-12-05T20:24:33.788290Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:24:33.889973Z  WARN turborepo_lib::package_changes_watcher: hashes are the same, no need to rerun
+2024-12-05T20:24:57.013599Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/src/app/(dashboard)/production/page.tsx")}
+2024-12-05T20:24:57.014945Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:25:30.304946Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/src/app/api/production/requests/route.ts")}
+2024-12-05T20:25:30.306919Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:25:50.488512Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/src/app/api/production/requests/route.ts")}
+2024-12-05T20:25:50.488653Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:25:58.188628Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/src/app/api/production/requests/test/route.ts"), AnchoredSystemPathBuf("packages/frontend/src/app/api/production/requests/test")}
+2024-12-05T20:25:58.188751Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:26:39.127755Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/src/app/api/production/test/route.ts"), AnchoredSystemPathBuf("packages/frontend/src/app/api/production/test")}
+2024-12-05T20:26:39.147845Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:26:56.687940Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/src/app/api/production/requests/test/route.ts"), AnchoredSystemPathBuf("packages/frontend/src/app/api/production/test/route.ts")}
+2024-12-05T20:26:56.687965Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:27:06.988057Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf(".turbo/cookies/1.cookie")}
+2024-12-05T20:27:06.988073Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Root, path: AnchoredSystemPathBuf("") }}))
+2024-12-05T20:28:50.227069Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/src/app/api/production/requests/route.ts")}
+2024-12-05T20:28:50.231980Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:31:46.636379Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/src/app/api/production/test/route.ts"), AnchoredSystemPathBuf("packages/frontend/src/app/api/production/batches/route.ts")}
+2024-12-05T20:31:46.637888Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:32:13.907084Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf(".turbo/cookies/2.cookie")}
+2024-12-05T20:32:13.907104Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Root, path: AnchoredSystemPathBuf("") }}))
+2024-12-05T20:34:49.612798Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/prisma/schema.prisma")}
+2024-12-05T20:34:49.613367Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:36:19.414585Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/prisma/schema.prisma")}
+2024-12-05T20:36:19.415245Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:37:02.508017Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/prisma/schema.prisma")}
+2024-12-05T20:37:02.508045Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:42:41.409068Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/prisma/schema.prisma")}
+2024-12-05T20:42:41.409091Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:42:45.209012Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/frontend/prisma/migrations/20241205204245_fix_production_relations"), AnchoredSystemPathBuf("packages/frontend/prisma/migrations/migration_lock.toml"), AnchoredSystemPathBuf("packages/frontend/prisma/migrations/20241205204245_fix_production_relations/migration.sql")}
+2024-12-05T20:42:45.209022Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("frontend"), path: AnchoredSystemPathBuf("packages/frontend") }}))
+2024-12-05T20:43:09.308682Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf(".turbo/cookies/3.cookie")}
+2024-12-05T20:43:09.308691Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Root, path: AnchoredSystemPathBuf("") }}))
+2024-12-05T20:45:10.609974Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf(".turbo/cookies/4.cookie")}
+2024-12-05T20:45:10.610379Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Root, path: AnchoredSystemPathBuf("") }}))
+2024-12-05T20:48:48.431058Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("CHANGELOG.md"), AnchoredSystemPathBuf("docs/ROADMAP.md"), AnchoredSystemPathBuf("docs/TESTING_STANDARDS.md")}
+2024-12-05T20:48:48.431660Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Root, path: AnchoredSystemPathBuf("") }}))

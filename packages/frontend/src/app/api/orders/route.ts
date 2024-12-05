@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
-import { OrderStatus, OrderItemStatus } from "@prisma/client"
+import { InventoryAssignmentService } from "@/lib/services/inventory-assignment.service"
 
 // Validation schema for order creation
 const createOrderSchema = z.object({
@@ -12,56 +12,88 @@ const createOrderSchema = z.object({
   }))
 })
 
+// Initialize services
+const inventoryAssignmentService = new InventoryAssignmentService(prisma)
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const validatedData = createOrderSchema.parse(body)
 
-    // Create order
-    const order = await prisma.order.create({
-      data: {
-        shopify_id: `SHOP-${Date.now()}`,
-        customer_id: validatedData.customer_id,
-        status: OrderStatus.NEW,
-        order_items: {
-          create: validatedData.items.map(item => ({
-            target_sku: item.target_sku,
-            quantity: item.quantity,
-            status: OrderItemStatus.PENDING_ASSIGNMENT
-          }))
-        }
-      },
-      include: {
-        order_items: true,
-        customer: {
-          include: {
-            profile: true
+    // Create order and process it in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create order
+      const order = await tx.order.create({
+        data: {
+          shopify_id: `SHOP-${Date.now()}`,
+          customer_id: validatedData.customer_id,
+          status: 'NEW',
+          order_items: {
+            create: validatedData.items.map(item => ({
+              target_sku: item.target_sku,
+              quantity: item.quantity,
+              status: 'NEW'
+            }))
+          }
+        },
+        include: {
+          order_items: true,
+          customer: {
+            include: {
+              profile: true
+            }
           }
         }
+      })
+
+      // Process each order item
+      const processingResults = await Promise.all(
+        order.order_items.map(async (item) => {
+          const result = await inventoryAssignmentService.assignInventoryToOrder(
+            order.id,
+            '00000000-0000-0000-0000-000000000000' // System operator ID
+          )
+          return { item, result }
+        })
+      )
+
+      // Update order status based on processing results
+      const allSuccessful = processingResults.every(r => r.result.success)
+      const anyProduction = processingResults.some(r => r.result.action === 'production_request')
+      const anyDirectAssignment = processingResults.some(r => r.result.action === 'direct_assignment')
+
+      let newStatus = 'NEW'
+      if (allSuccessful) {
+        if (anyProduction) {
+          newStatus = 'PENDING_PRODUCTION'
+        } else if (anyDirectAssignment) {
+          newStatus = 'PROCESSING'
+        }
+      }
+
+      const updatedOrder = await tx.order.update({
+        where: { id: order.id },
+        data: { status: newStatus },
+        include: {
+          order_items: true,
+          customer: {
+            include: {
+              profile: true
+            }
+          }
+        }
+      })
+
+      return {
+        order: updatedOrder,
+        processing: processingResults
       }
     })
-
-    // Automatically process the order
-    const processResponse = await fetch(`${req.nextUrl.origin}/api/orders/${order.id}/process`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        operatorId: '00000000-0000-0000-0000-000000000000', // System operator ID
-      }),
-    })
-
-    const processResult = await processResponse.json()
 
     return NextResponse.json({
       success: true,
       message: 'Order created and processed successfully',
-      order: {
-        ...order,
-        status: processResult.newStatus,
-        processing: processResult
-      }
+      ...result
     })
 
   } catch (error) {
