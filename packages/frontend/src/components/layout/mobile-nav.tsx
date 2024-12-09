@@ -82,6 +82,16 @@ const routes: Route[] = [
     icon: Timer,
     href: '/wash',
     color: "text-blue-500",
+    subItems: [
+      {
+        label: 'Requests',
+        href: '/wash'
+      },
+      {
+        label: 'Wash Bins',
+        href: '/wash/bins'
+      }
+    ]
   },
   {
     label: 'Finishing',

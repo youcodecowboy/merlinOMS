@@ -22,6 +22,7 @@ enum RequestType {
   PRODUCTION
   PATTERN
   CUTTING
+  SEW
   WASH
   QC
   FINISHING
@@ -104,6 +105,9 @@ model User {
   request_timelines RequestTimeline[]
   status_changes    StatusHistory[]
   profile           UserProfile?
+  assignedRequests  Request[]     @relation("AssignedRequests")
+
+  @@index([email])
 }
 
 model UserProfile {
@@ -227,6 +231,8 @@ model Request {
   order         Order?            @relation(fields: [order_id], references: [id])
   batch_id      String?
   batch         Batch?            @relation(fields: [batch_id], references: [id])
+  assigned_to   String?
+  assignedUser  User?             @relation("AssignedRequests", fields: [assigned_to], references: [id])
   metadata      Json?
   events        Event[]
   notifications Notification[]
@@ -234,9 +240,11 @@ model Request {
   updated_at    DateTime          @updatedAt
   timeline      RequestTimeline[]
   timelines     Timeline[]
+  materialConsumptions MaterialConsumption[]
 
   @@index([status, type])
   @@index([created_at])
+  @@index([assigned_to])
 }
 
 model Event {
@@ -259,13 +267,16 @@ model Notification {
   type       String
   message    String
   user_id    String
-  user       User     @relation(fields: [user_id], references: [id])
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   request_id String?
   request    Request? @relation(fields: [request_id], references: [id])
   read       Boolean  @default(false)
   metadata   Json?
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+
+  @@index([user_id])
+  @@index([created_at])
 }
 
 model AuthToken {
@@ -421,4 +432,50 @@ model WashMapping {
 
   @@unique([target_wash, source_wash])
   @@index([wash_group])
+}
+
+model MaterialStock {
+  id              String            @id @default(uuid())
+  materialCode    String            @unique
+  type            String            // e.g., 'FABRIC', 'THREAD', etc.
+  currentQuantity Float
+  unit            String            // e.g., 'METERS', 'KILOGRAMS', etc.
+  reorderPoint    Float?
+  metadata        Json?
+  consumptions    MaterialConsumption[]
+  created_at      DateTime          @default(now())
+  updated_at      DateTime          @updatedAt
+
+  @@index([materialCode])
+  @@index([type])
+}
+
+model MaterialConsumption {
+  id              String        @id @default(uuid())
+  materialId      String
+  material        MaterialStock @relation(fields: [materialId], references: [id])
+  requestId       String
+  request         Request       @relation(fields: [requestId], references: [id])
+  quantity        Float
+  unit            String
+  type            String        // e.g., 'CUTTING', 'SEWING', etc.
+  metadata        Json?
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+
+  @@index([materialId])
+  @@index([requestId])
+  @@index([type])
+}
+
+model Location {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  type       String
+  status     String   @default("ACTIVE")
+  metadata   Json?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([type])
 }

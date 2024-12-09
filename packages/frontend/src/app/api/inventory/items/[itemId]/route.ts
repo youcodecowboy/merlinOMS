@@ -11,7 +11,45 @@ export async function GET(
     const item = await prisma.inventoryItem.findUnique({
       where: { id: params.itemId },
       include: {
-        current_bin: true
+        current_bin: true,
+        order_assignment: {
+          include: {
+            order: {
+              include: {
+                customer: {
+                  include: {
+                    profile: true
+                  }
+                },
+                order_items: true
+              }
+            }
+          }
+        },
+        requests: {
+          orderBy: {
+            created_at: 'desc'
+          },
+          include: {
+            order: {
+              include: {
+                customer: {
+                  include: {
+                    profile: true
+                  }
+                }
+              }
+            }
+          }
+        },
+        events: {
+          orderBy: {
+            created_at: 'desc'
+          },
+          include: {
+            actor: true
+          }
+        }
       }
     })
 
@@ -22,7 +60,7 @@ export async function GET(
       )
     }
 
-    console.log('Found item:', item)
+    console.log('Found item with events:', item.events)
     
     return NextResponse.json({
       success: true,

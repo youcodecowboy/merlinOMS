@@ -268,14 +268,42 @@ async function assignItemToOrder(itemId: string, orderItemId: string, orderId: s
             status: 'PENDING',
             item_id: itemId,
             order_id: orderId,
+            assigned_to: '2d40fc18-e02a-41f1-8c4e-92f770133029', // Warehouse user ID
             metadata: {
               order_item_id: orderItemId,
               requires_bin_assignment: true,
-              requires_qr_scan: true
+              requires_qr_scan: true,
+              target_wash: orderItem.target_sku.split('-')[4],
+              is_universal_match: item.sku !== orderItem.target_sku,
+              source: item.location || 'WAREHOUSE',
+              sku: item.sku,
+              target_sku: orderItem.target_sku,
+              order_shopify_id: order.shopify_id,
+              customer_name: order.customer?.profile?.metadata?.firstName 
+                ? `${order.customer.profile.metadata.firstName} ${order.customer.profile.metadata.lastName}`
+                : 'Unknown Customer',
+              customer_email: order.customer?.email || 'unknown@example.com',
+              assigned_at: new Date().toISOString()
             }
           }
         });
         console.log('Created wash request:', JSON.stringify(washRequest, null, 2));
+
+        // Create notification for assigned operator
+        await tx.notification.create({
+          data: {
+            type: 'REQUEST_ASSIGNED',
+            message: `You have been assigned a new wash request for item ${updatedItem.sku}`,
+            user_id: '2d40fc18-e02a-41f1-8c4e-92f770133029', // Warehouse user ID
+            request_id: washRequest.id,
+            read: false,
+            metadata: {
+              request_type: 'WASH',
+              item_id: itemId,
+              item_sku: updatedItem.sku,
+            }
+          }
+        });
 
         return { updatedItem, updatedOrderItem, washRequest };
       }

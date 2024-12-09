@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
 import { 
@@ -10,191 +11,203 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
-  ArrowRight
+  ArrowRight,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
 
 interface ProductionBatch {
   id: string
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED'
-  items: {
-    sku: string
-    quantity: number
-    waitlist_count: number
-  }[]
+  sku: string
+  quantity: number
+  status: string
   created_at: string
-  estimated_completion: string
-  assigned_to?: string
-  notes?: string
+  updated_at: string
+  requests_count: number
+  items_count: number
+  pattern: {
+    id: string
+    status: string
+    created_at: string
+  } | null
 }
 
-const productionBatches: ProductionBatch[] = [
-  {
-    id: 'PB001',
-    status: 'IN_PROGRESS',
-    items: [
-      { sku: 'ST-32-R-36-RAW', quantity: 10, waitlist_count: 8 },
-      { sku: 'ST-34-R-36-BRW', quantity: 15, waitlist_count: 12 }
-    ],
-    created_at: '2024-01-15',
-    estimated_completion: '2024-01-20',
-    assigned_to: 'John Doe',
-    notes: 'Priority batch for backorders'
-  },
-  {
-    id: 'PB002',
-    status: 'PENDING',
-    items: [
-      { sku: 'PT-32-S-36-RAW', quantity: 8, waitlist_count: 5 }
-    ],
-    created_at: '2024-01-14',
-    estimated_completion: '2024-01-19'
-  },
-  {
-    id: 'PB003',
-    status: 'COMPLETED',
-    items: [
-      { sku: 'ST-30-R-32-RAW', quantity: 12, waitlist_count: 0 },
-      { sku: 'ST-32-R-32-RAW', quantity: 8, waitlist_count: 0 }
-    ],
-    created_at: '2024-01-10',
-    estimated_completion: '2024-01-15',
-    assigned_to: 'Jane Smith',
-    notes: 'Regular production batch'
+export default function ProductionBatchesPage() {
+  const [batches, setBatches] = useState<ProductionBatch[]>([])
+  const [expandedRows, setExpandedRows] = useState<string[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    fetchBatches()
+  }, [])
+
+  const fetchBatches = async () => {
+    try {
+      setIsLoading(true)
+      const response = await fetch('/api/production/batches')
+      const data = await response.json()
+      
+      if (data.success) {
+        console.log('Fetched batches:', data.batches)
+        setBatches(data.batches)
+      } else {
+        setError(data.error || 'Failed to fetch batches')
+        toast.error(data.error || 'Failed to fetch batches')
+      }
+    } catch (error) {
+      console.error('Error fetching batches:', error)
+      setError('Failed to fetch batches')
+      toast.error('Failed to fetch batches')
+    } finally {
+      setIsLoading(false)
+    }
   }
-]
 
-const columns = [
-  {
-    key: 'id' as keyof ProductionBatch,
-    label: 'Batch ID',
-    sortable: true,
-  },
-  {
-    key: 'items' as keyof ProductionBatch,
-    label: 'Items',
-    render: (items: ProductionBatch['items']) => (
-      <div className="space-y-1">
-        {items.map((item, index) => (
-          <div key={index} className="flex items-center justify-between text-sm">
-            <span className="font-mono">{item.sku}</span>
-            <div className="flex items-center gap-2">
-              <span>×{item.quantity}</span>
-              {item.waitlist_count > 0 && (
-                <div className="flex items-center gap-1 text-orange-500">
-                  <Timer className="h-3 w-3" />
-                  <span className="text-xs">{item.waitlist_count}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+  const toggleRow = (id: string) => {
+    setExpandedRows(prev => 
+      prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id]
     )
-  },
-  {
-    key: 'status' as keyof ProductionBatch,
-    label: 'Status',
-    sortable: true,
-    render: (value: ProductionBatch['status']) => {
-      const styles = {
-        PENDING: 'bg-yellow-500/10 text-yellow-500',
-        IN_PROGRESS: 'bg-blue-500/10 text-blue-500',
-        COMPLETED: 'bg-green-500/10 text-green-500',
-        FAILED: 'bg-red-500/10 text-red-500'
-      }[value]
+  }
 
-      const icons = {
-        PENDING: AlertTriangle,
-        IN_PROGRESS: Scissors,
-        COMPLETED: CheckCircle,
-        FAILED: XCircle
-      } as const
-
-      const Icon = icons[value]
-
-      return (
-        <div className={cn(
-          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold",
-          styles
-        )}>
-          <Icon className="h-3.5 w-3.5" />
-          {value}
+  const columns = [
+    {
+      key: 'id',
+      label: 'Batch ID',
+      render: (value: string, row: ProductionBatch) => {
+        console.log('Rendering batch ID:', value, row)
+        const isExpanded = expandedRows.includes(row.id)
+        return (
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                toggleRow(row.id)
+              }}
+            >
+              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </Button>
+            <span className="font-mono">{row.id}</span>
+          </div>
+        )
+      }
+    },
+    {
+      key: 'sku',
+      label: 'SKU',
+      render: (value: string) => (
+        <div className="font-mono">
+          {value || '-'}
         </div>
       )
+    },
+    {
+      key: 'quantity',
+      label: 'Quantity',
+      render: (value: number, row: ProductionBatch) => (
+        <div className="flex items-center space-x-2">
+          <span>{value}</span>
+          <span className="text-muted-foreground text-xs">
+            ({row.items_count} created)
+          </span>
+        </div>
+      )
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (value: string) => (
+        <Badge
+          variant={
+            value === 'PENDING'
+              ? 'warning'
+              : value === 'IN_PROGRESS'
+              ? 'secondary'
+              : 'success'
+          }
+        >
+          {value}
+        </Badge>
+      )
+    },
+    {
+      key: 'created_at',
+      label: 'Created',
+      render: (value: string) => new Date(value).toLocaleString()
     }
-  },
-  {
-    key: 'estimated_completion' as keyof ProductionBatch,
-    label: 'Est. Completion',
-    sortable: true,
-  },
-  {
-    key: 'assigned_to' as keyof ProductionBatch,
-    label: 'Assigned To',
-    sortable: true,
-  }
-]
+  ]
 
-export default function ProductionBatchesPage() {
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto py-10">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Production Batches</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Production Batches</h1>
           <p className="text-muted-foreground">
-            View and manage production batches across all stages.
+            View and manage production batches.
           </p>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-lg border bg-card p-6">
-          <div className="flex items-center gap-4">
-            <AlertTriangle className="h-8 w-8 text-yellow-500" />
-            <div>
-              <p className="text-sm text-muted-foreground">Pending</p>
-              <p className="text-2xl font-bold">3</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg border bg-card p-6">
-          <div className="flex items-center gap-4">
-            <Scissors className="h-8 w-8 text-blue-500" />
-            <div>
-              <p className="text-sm text-muted-foreground">In Progress</p>
-              <p className="text-2xl font-bold">5</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg border bg-card p-6">
-          <div className="flex items-center gap-4">
-            <CheckCircle className="h-8 w-8 text-green-500" />
-            <div>
-              <p className="text-sm text-muted-foreground">Completed</p>
-              <p className="text-2xl font-bold">12</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg border bg-card p-6">
-          <div className="flex items-center gap-4">
-            <XCircle className="h-8 w-8 text-red-500" />
-            <div>
-              <p className="text-sm text-muted-foreground">Failed</p>
-              <p className="text-2xl font-bold">1</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <DataTable
-        data={productionBatches}
         columns={columns}
+        data={batches}
+        isLoading={isLoading}
         onRowClick={(row) => {
-          console.log('Viewing batch:', row.id)
+          toggleRow(row.id)
+        }}
+        renderRowDetails={(row) => {
+          if (!expandedRows.includes(row.id)) return null
+          
+          return (
+            <div className="p-4 bg-muted/50 border-t border-border">
+              <div className="space-y-4">
+                <div className="text-sm font-medium">Batch Details</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-lg border bg-card">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">Production Requests</div>
+                        <Badge variant="outline">{row.requests_count}</Badge>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-lg border bg-card">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">Items Created</div>
+                        <Badge variant="outline">{row.items_count} / {row.quantity}</Badge>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-lg border bg-card">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">Pattern Status</div>
+                        {row.pattern ? (
+                          <Badge variant={
+                            row.pattern.status === 'PENDING'
+                              ? 'warning'
+                              : row.pattern.status === 'IN_PROGRESS'
+                              ? 'secondary'
+                              : 'success'
+                          }>
+                            {row.pattern.status}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">No Pattern</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
         }}
       />
     </div>

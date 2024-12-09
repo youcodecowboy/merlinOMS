@@ -6,7 +6,33 @@ const fetcher = async (url: string) => {
     throw new Error('Failed to fetch pattern requests');
   }
   const data = await response.json();
-  return { requests: data };
+
+  // Fetch order information for each request that has order_ids
+  const requestsWithOrders = await Promise.all(
+    data.requests.map(async (request: any) => {
+      const orderIds = request.metadata?.order_ids;
+      if (!orderIds?.length) return request;
+
+      try {
+        const orderResponse = await fetch(`/api/orders/${orderIds[0]}`);
+        if (!orderResponse.ok) return request;
+
+        const orderData = await orderResponse.json();
+        return {
+          ...request,
+          order: orderData.order
+        };
+      } catch (error) {
+        console.error('Error fetching order:', error);
+        return request;
+      }
+    })
+  );
+
+  return {
+    ...data,
+    requests: requestsWithOrders
+  };
 };
 
 export function usePatternRequests() {

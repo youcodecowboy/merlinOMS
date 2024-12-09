@@ -1,27 +1,41 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { nanoid } from 'nanoid'
-import QRCode from 'qrcode'
-import PDFDocument from 'pdfkit'
-import { Prisma } from '@prisma/client'
+import { PrismaClient, ProductionWaitlist, Prisma } from '@prisma/client'
 
-export async function POST(req: Request) {
+interface SkuGroup {
+  requests: any[]
+  totalQuantity: number
+  metadata: Record<string, any>
+}
+
+interface ProductionRequest {
+  id: string
+  type: string
+  status: string
+  metadata: {
+    sku: string
+    quantity: number
+    order_ids?: string[]
+  }
+}
+
+export async function POST(request: Request) {
   try {
-    const { requestIds, quantity } = await req.json()
+    const { requestIds, quantity, metadata } = await request.json()
 
-    if (!requestIds?.length || !quantity) {
+    if (!requestIds?.length || !quantity || !metadata?.sku) {
       return NextResponse.json({
-        success: false,
         error: 'Missing required fields'
       }, { status: 400 })
     }
 
-    // Start transaction
-    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const result = await prisma.$transaction(async (tx) => {
       // 1. Get all requests and validate they're for the same SKU
-      const requests = await tx.productionRequest.findMany({
+      const requests = await tx.request.findMany({
         where: {
           id: { in: requestIds },
+          type: 'PRODUCTION',
           status: 'PENDING'
         }
       })
@@ -30,143 +44,189 @@ export async function POST(req: Request) {
         throw new Error('One or more requests not found or not in PENDING status')
       }
 
-      const skus = new Set(requests.map(r => r.sku))
+      const skus = new Set(requests.map(r => (r.metadata as any)?.sku))
       if (skus.size !== 1) {
         throw new Error('All requests must be for the same SKU')
       }
 
-      const sku = requests[0].sku
-      const totalRequestedQuantity = requests.reduce((sum: number, r) => sum + r.quantity, 0)
+      const sku = metadata.sku
+      if (!sku) {
+        throw new Error('Invalid SKU in request')
+      }
+
+      // Extract style from SKU (e.g., "ST-32-X-36-RAW" -> "ST")
+      const style = sku.split('-')[0]
+      if (!style) {
+        throw new Error('Could not determine style from SKU')
+      }
+
+      const totalRequestedQuantity = requests.reduce((sum: number, r) => {
+        const qty = (r.metadata as any)?.quantity || 0
+        return sum + qty
+      }, 0)
       
       if (quantity < totalRequestedQuantity) {
-        throw new Error('Batch quantity cannot be less than total requested quantity')
+        throw new Error(`Batch quantity (${quantity}) must be at least equal to total requested quantity (${totalRequestedQuantity})`)
       }
 
       // 2. Create the production batch
+      const batchId = `PB-${nanoid(8)}`
       const batch = await tx.productionBatch.create({
         data: {
-          id: `PB-${nanoid(8)}`,
-          sku,
-          quantity,
+          id: batchId,
           status: 'PENDING',
-          requests: {
-            connect: requests.map(r => ({ id: r.id }))
+          sku: metadata.sku,
+          quantity: quantity
+        }
+      })
+
+      // Create a regular batch for request tracking
+      const regularBatch = await tx.batch.create({
+        data: {
+          id: batchId,
+          status: 'PENDING',
+          style: style,
+          quantity: quantity,
+          metadata: {
+            ...metadata,
+            production_batch_id: batch.id
           }
         }
       })
 
-      // 3. Generate QR codes and create inventory items
+      // 3. Create inventory items with QR codes as their IDs
       const items = await Promise.all(
         Array.from({ length: quantity }).map(async (_, i) => {
-          const itemId = `${batch.id}-${String(i + 1).padStart(3, '0')}`
-          const qrCode = await QRCode.toDataURL(itemId)
-          
+          // Generate QR code that will serve as the item_id
+          const qrCode = nanoid(8).toUpperCase()
           return tx.inventoryItem.create({
             data: {
-              id: itemId,
-              sku,
+              id: qrCode, // Use QR code as the item_id
+              sku: metadata.sku,
               status1: 'PRODUCTION',
               status2: 'UNCOMMITTED',
-              qrCode,
-              batchId: batch.id,
-              metadata: {
-                create: {
-                  productionBatchId: batch.id,
-                  position: i + 1
+              location: 'PATTERN',
+              qr_code: qrCode, // Same as id for scanning
+              batch: {
+                connect: {
+                  id: regularBatch.id
                 }
+              },
+              metadata: {
+                ...metadata,
+                batch_id: regularBatch.id,
+                production_batch_id: batch.id,
+                position: i + 1,
+                production_stage: 'PATTERN',
+                universal_sku: metadata.sku.split('-').slice(0, -1).join('-')
               }
             }
           })
         })
       )
 
-      // 4. Create pattern request
-      const patternRequest = await tx.patternRequest.create({
-        data: {
-          id: `PR-${nanoid(8)}`,
-          batchId: batch.id,
-          sku,
-          quantity,
-          status: 'PENDING'
+      // 4. Create pattern requests for each item
+      const patternRequests = await Promise.all(
+        items.map(item => 
+          tx.request.create({
+            data: {
+              type: 'PATTERN',
+              status: 'PENDING',
+              item_id: item.id,
+              batch_id: regularBatch.id,
+              metadata: {
+                sku: item.sku,
+                universal_sku: (item.metadata as any)?.universal_sku,
+                batch_id: regularBatch.id,
+                production_batch_id: batch.id,
+                position: (item.metadata as any)?.position,
+                quantity: 1
+              }
+            }
+          })
+        )
+      )
+
+      // 5. Update original production requests to link them to batch
+      await Promise.all(
+        requests.map(request => 
+          tx.request.update({
+            where: { id: request.id },
+            data: {
+              status: 'IN_PROGRESS',
+              batch_id: regularBatch.id,
+              metadata: {
+                ...request.metadata,
+                production_batch_id: batch.id,
+                completed_at: new Date().toISOString()
+              }
+            }
+          })
+        )
+      )
+
+      // 6. Check waitlist and update item statuses
+      const waitlistEntries = await tx.productionWaitlist.findMany({
+        where: {
+          production_request: {
+            type: 'PRODUCTION',
+            status: 'PENDING'
+          }
+        },
+        orderBy: {
+          position: 'asc'
+        },
+        take: quantity,
+        include: {
+          order_item: true,
+          production_request: true
         }
       })
 
-      // 5. Generate PDF with QR codes
-      const doc = new PDFDocument()
-      const chunks: Uint8Array[] = []
-      
-      doc.on('data', (chunk: Uint8Array) => chunks.push(chunk))
-      
-      // Add batch info
-      doc.fontSize(20).text(`Production Batch: ${batch.id}`, { align: 'center' })
-      doc.fontSize(14).text(`SKU: ${sku}`, { align: 'center' })
-      doc.fontSize(14).text(`Quantity: ${quantity}`, { align: 'center' })
-      doc.moveDown()
+      // Filter waitlist entries that match the universal SKU
+      const universalSku = metadata.sku.split('-').slice(0, -1).join('-')
+      const matchingWaitlistEntries = waitlistEntries.filter(entry => {
+        const requestMetadata = entry.production_request.metadata as any
+        return requestMetadata?.universal_sku === universalSku
+      })
 
-      // Add QR codes in a grid
-      const codesPerRow = 4
-      const qrSize = 120
-      const margin = 20
-      let x = margin
-      let y = doc.y + margin
-
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i]
-        
-        // Add QR code
-        doc.image(item.qrCode, x, y, { width: qrSize })
-        
-        // Add item ID below QR code
-        doc.fontSize(10).text(item.id, x, y + qrSize + 5, {
-          width: qrSize,
-          align: 'center'
-        })
-
-        // Move to next position
-        x += qrSize + margin
-        if ((i + 1) % codesPerRow === 0) {
-          x = margin
-          y += qrSize + margin + 20 // Extra 20 for item ID text
-        }
-
-        // New page if needed
-        if (y > doc.page.height - (qrSize + margin + 20)) {
-          doc.addPage()
-          x = margin
-          y = margin
-        }
+      if (matchingWaitlistEntries.length > 0) {
+        // Update items to COMMITTED for waitlisted orders
+        await Promise.all(
+          matchingWaitlistEntries.map((entry, index) => 
+            tx.inventoryItem.update({
+              where: { id: items[index].id },
+              data: {
+                status2: 'COMMITTED',
+                metadata: {
+                  sku: items[index].sku,
+                  universal_sku: metadata.sku.split('-').slice(0, -1).join('-'),
+                  batch_id: regularBatch.id,
+                  production_batch_id: batch.id,
+                  position: index + 1,
+                  production_stage: 'PATTERN',
+                  committed_to_order_id: entry.order_item_id,
+                  committed_at: new Date().toISOString(),
+                  waitlist_position: entry.position
+                }
+              }
+            })
+          )
+        )
       }
 
-      doc.end()
-
-      // Convert buffers to base64
-      const pdfBuffer = Buffer.concat(chunks)
-      const pdfBase64 = pdfBuffer.toString('base64')
-
-      // Update batch with PDF
-      await tx.productionBatch.update({
-        where: { id: batch.id },
-        data: {
-          qrCodesPdf: pdfBase64
-        }
-      })
-
-      // 6. Update request statuses
-      await tx.productionRequest.updateMany({
-        where: { id: { in: requestIds } },
-        data: { status: 'IN_PROGRESS' }
-      })
-
       return {
-        batchId: batch.id,
-        patternRequestId: patternRequest.id,
-        itemCount: items.length,
-        pdf: pdfBase64
+        productionBatch: batch,
+        batch: regularBatch,
+        items,
+        patternRequests,
+        waitlistAssignments: matchingWaitlistEntries.length
       }
     })
 
     return NextResponse.json({
       success: true,
+      message: 'Production batch created successfully',
       data: result
     })
 
@@ -175,6 +235,46 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to create production batch'
+    }, { status: 500 })
+  }
+}
+
+export async function GET() {
+  try {
+    const batches = await prisma.productionBatch.findMany({
+      include: {
+        requests: true,
+        items: true,
+        pattern: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
+
+    return NextResponse.json({
+      success: true,
+      batches: batches.map(batch => ({
+        id: batch.id,
+        sku: batch.sku,
+        quantity: batch.quantity,
+        status: batch.status,
+        created_at: batch.createdAt.toISOString(),
+        updated_at: batch.updatedAt.toISOString(),
+        requests_count: batch.requests.length,
+        items_count: batch.items.length,
+        pattern: batch.pattern ? {
+          id: batch.pattern.id,
+          status: batch.pattern.status,
+          created_at: batch.pattern.createdAt.toISOString()
+        } : null
+      }))
+    })
+  } catch (error) {
+    console.error('Error fetching batches:', error)
+    return NextResponse.json({
+      success: false,
+      error: 'Failed to fetch batches'
     }, { status: 500 })
   }
 } 

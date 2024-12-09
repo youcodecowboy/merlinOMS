@@ -69,7 +69,7 @@ export class PatternMakerService {
         }
       });
 
-      // Update pattern requests
+      // Update pattern requests and batch status
       await tx.patternRequest.updateMany({
         where: { id: { in: patternRequestIds } },
         data: { 
@@ -77,6 +77,30 @@ export class PatternMakerService {
           cutting_request_id: cuttingRequest.id
         }
       });
+
+      // Update batch status to PATTERN
+      const batchIds = [...new Set(patternRequests.map(pr => pr.production_batch?.id).filter(Boolean))];
+      for (const batchId of batchIds) {
+        const batch = await tx.batch.update({
+          where: { id: batchId },
+          data: { status: 'PATTERN' }
+        });
+
+        // Create status history entry
+        await tx.statusHistory.create({
+          data: {
+            entity_type: 'batch',
+            entity_id: batchId,
+            old_status: 'PENDING',
+            new_status: 'PATTERN',
+            changed_by: actorId,
+            metadata: {
+              cutting_request_id: cuttingRequest.id,
+              notes: 'Pattern request accepted and cutting request created'
+            }
+          }
+        });
+      }
 
       // Create notification for cutting team
       await tx.notification.create({
@@ -98,7 +122,8 @@ export class PatternMakerService {
         metadata: {
           cutting_request_id: cuttingRequest.id,
           pattern_request_ids: patternRequestIds,
-          total_quantity: cuttingRequest.metadata.total_quantity
+          total_quantity: cuttingRequest.metadata.total_quantity,
+          batch_ids: batchIds
         }
       });
 

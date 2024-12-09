@@ -1,132 +1,145 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { DataTable } from "@/components/ui/data-table"
-import { Scissors } from "lucide-react"
+import { DataTable, Column } from "@/components/ui/data-table"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { ChevronDown } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
 
 interface PendingRequest {
   id: string
-  sku: string
-  quantity: number
-  orderIds: string[]
+  metadata: {
+    sku: string
+    quantity: number
+    order_ids: string[]
+    target_sku?: string
+    universal_sku?: string
+  }
   status: string
-  type: 'PRODUCTION' | 'PATTERN'
-  requiresApproval: boolean
+  type: string
   createdAt: string
   updatedAt: string
-}
-
-interface BatchDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  selectedSku: string
-  baseQuantity: number
-  onConfirm: (quantity: number) => void
-}
-
-function BatchDialog({ isOpen, onClose, selectedSku, baseQuantity, onConfirm }: BatchDialogProps) {
-  const [quantity, setQuantity] = useState(baseQuantity)
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create Production Batch</DialogTitle>
-          <DialogDescription>
-            Create a new production batch for {selectedSku}. You can adjust the quantity if needed.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="quantity">Quantity</Label>
-            <Input
-              id="quantity"
-              type="number"
-              value={quantity}
-              onChange={(e) => setQuantity(Number(e.target.value))}
-              min={baseQuantity}
-            />
-            <p className="text-sm text-muted-foreground">
-              Minimum quantity: {baseQuantity} (based on waitlist)
-            </p>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => onConfirm(quantity)}>Create Batch</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-const columns = [
-  { 
-    key: 'sku' as keyof PendingRequest,
-    label: "Universal SKU",
-  },
-  { 
-    key: 'quantity' as keyof PendingRequest,
-    label: "Quantity",
-  },
-  { 
-    key: 'orderIds' as keyof PendingRequest,
-    label: "Waiting Orders",
-    render: (value: string[]) => value.length
-  },
-  { 
-    key: 'type' as keyof PendingRequest,
-    label: "Type",
-    render: (value: string) => (
-      <div className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-        value === 'PRODUCTION' 
-          ? "bg-yellow-500/10 text-yellow-500"
-          : "bg-blue-500/10 text-blue-500"
-      )}>
-        {value}
-      </div>
-    )
-  },
-  { 
-    key: 'createdAt' as keyof PendingRequest,
-    label: "Created",
-    render: (value: string) => new Date(value).toLocaleString()
-  },
-  { 
-    key: 'requiresApproval' as keyof PendingRequest,
-    label: "Approval Required",
-    render: (value: boolean) => (
-      <div className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-        value
-          ? "bg-yellow-500/10 text-yellow-500"
-          : "bg-green-500/10 text-green-500"
-      )}>
-        {value ? "Yes" : "No"}
-      </div>
-    )
+  order?: {
+    id: string
+    shopify_id: string
+    created_at: string
+    order_items: {
+      target_sku: string
+      quantity: number
+    }[]
   }
-]
+}
 
-export default function PendingProductionPage() {
+interface GroupedRequest {
+  sku: string
+  requests: PendingRequest[]
+  totalQuantity: number
+  status: string
+  createdAt: string
+}
+
+export default function ProductionPage() {
   const [loading, setLoading] = useState(true)
   const [requests, setRequests] = useState<PendingRequest[]>([])
   const [selectedRequests, setSelectedRequests] = useState<string[]>([])
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [expandedRows, setExpandedRows] = useState<string[]>([])
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [quantity, setQuantity] = useState(0)
+
+  // Group requests by SKU
+  const groupedRequests = requests.reduce<Record<string, GroupedRequest>>((acc, request) => {
+    const sku = request.metadata?.sku || 'Unknown'
+    if (!acc[sku]) {
+      acc[sku] = {
+        sku,
+        requests: [],
+        totalQuantity: 0,
+        status: request.status,
+        createdAt: request.createdAt
+      }
+    }
+    acc[sku].requests.push(request)
+    acc[sku].totalQuantity += request.metadata?.quantity || 0
+    // Update status based on priority: IN_PROGRESS > PENDING > COMPLETED
+    if (request.status === 'IN_PROGRESS' || 
+        (request.status === 'PENDING' && acc[sku].status === 'COMPLETED')) {
+      acc[sku].status = request.status
+    }
+    // Keep earliest created date
+    if (new Date(request.createdAt) < new Date(acc[sku].createdAt)) {
+      acc[sku].createdAt = request.createdAt
+    }
+    return acc
+  }, {})
+
+  const columns: Column<GroupedRequest>[] = [
+    {
+      key: "select",
+      label: "",
+      render: (value, row) => (
+        <input
+          type="checkbox"
+          checked={row.requests.every(r => selectedRequests.includes(r.id))}
+          onChange={(e) => {
+            const requestIds = row.requests.map(r => r.id)
+            if (e.target.checked) {
+              setSelectedRequests(prev => [...prev, ...requestIds.filter(id => !prev.includes(id))])
+            } else {
+              setSelectedRequests(prev => prev.filter(id => !requestIds.includes(id)))
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
+          className="h-4 w-4 rounded border-gray-300"
+        />
+      )
+    },
+    {
+      key: "sku",
+      label: "SKU",
+      render: (value, row) => (
+        <div className="font-mono">{row.sku}</div>
+      )
+    },
+    {
+      key: "totalQuantity",
+      label: "Total Quantity",
+      render: (value, row) => row.totalQuantity.toString()
+    },
+    {
+      key: "requests",
+      label: "Requests",
+      render: (value, row) => row.requests.length.toString()
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (value, row) => (
+        <Badge
+          variant={
+            row.status === 'PENDING'
+              ? 'warning'
+              : row.status === 'IN_PROGRESS'
+              ? 'secondary'
+              : 'success'
+          }
+        >
+          {row.status}
+        </Badge>
+      )
+    },
+    {
+      key: "createdAt",
+      label: "Created",
+      render: (value, row) => {
+        const date = new Date(row.createdAt)
+        return date.toLocaleString()
+      }
+    }
+  ]
 
   useEffect(() => {
     fetchRequests()
@@ -134,134 +147,181 @@ export default function PendingProductionPage() {
 
   const fetchRequests = async () => {
     try {
+      setLoading(true)
       const response = await fetch('/api/production/requests')
       const data = await response.json()
       
       if (data.success) {
         setRequests(data.requests)
       } else {
-        toast.error('Failed to load production requests')
+        toast.error('Failed to fetch requests')
       }
     } catch (error) {
       console.error('Error fetching requests:', error)
-      toast.error('Error loading production requests')
+      toast.error('Failed to fetch requests')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleRequestSelect = (request: PendingRequest) => {
-    setSelectedRequests(prev => {
-      const isSelected = prev.includes(request.id)
-      if (isSelected) {
-        return prev.filter(id => id !== request.id)
-      } else {
-        // Only allow selection if no other SKU is selected
-        const selectedSku = requests.find(r => r.id === prev[0])?.sku
-        if (!selectedSku || selectedSku === request.sku) {
-          return [...prev, request.id]
-        }
-        toast.error('Can only select requests for the same SKU')
-        return prev
-      }
-    })
-  }
+  const handleCreateBatch = async () => {
+    if (!selectedRequests.length || !quantity) {
+      toast.error('Please select requests and enter quantity')
+      return
+    }
 
-  const getSelectedSku = () => {
-    if (selectedRequests.length === 0) return null
-    return requests.find(r => r.id === selectedRequests[0])?.sku || null
-  }
-
-  const getBaseQuantity = () => {
-    return selectedRequests.reduce((total, requestId) => {
-      const request = requests.find(r => r.id === requestId)
-      return total + (request?.quantity || 0)
-    }, 0)
-  }
-
-  const handleCreateBatch = async (quantity: number) => {
     try {
+      const selectedRequest = requests.find(r => r.id === selectedRequests[0])
+      if (!selectedRequest) {
+        toast.error('Selected request not found')
+        return
+      }
+
       const response = await fetch('/api/production/batches', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           requestIds: selectedRequests,
           quantity,
-        }),
+          metadata: {
+            sku: selectedRequest.metadata.sku,
+            universal_sku: selectedRequest.metadata.universal_sku
+          }
+        })
       })
 
       const data = await response.json()
-      
       if (data.success) {
-        // Create a blob from the base64 PDF data
-        const binaryString = atob(data.data.pdf)
-        const bytes = new Uint8Array(binaryString.length)
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i)
-        }
-        const pdfBlob = new Blob([bytes], { type: 'application/pdf' })
-
-        // Create download link
-        const url = window.URL.createObjectURL(pdfBlob)
-        const link = document.createElement('a')
-        link.href = url
-        link.setAttribute('download', `batch-${data.data.batchId}-qr-codes.pdf`)
-        document.body.appendChild(link)
-        link.click()
-        link.remove()
-        window.URL.revokeObjectURL(url)
-
         toast.success('Production batch created')
+        setDialogOpen(false)
         setSelectedRequests([])
+        setQuantity(0)
         fetchRequests()
       } else {
         toast.error(data.error || 'Failed to create batch')
       }
     } catch (error) {
       console.error('Error creating batch:', error)
-      toast.error('Error creating production batch')
+      toast.error('Failed to create batch')
     }
-    setIsDialogOpen(false)
   }
 
-  const canCreateBatch = selectedRequests.length > 0
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto py-10">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Pending Production</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Pending Production</h1>
           <p className="text-muted-foreground">
             Manage and group production requests into batches.
           </p>
         </div>
         <Button
-          disabled={!canCreateBatch}
-          onClick={() => setIsDialogOpen(true)}
+          onClick={() => setDialogOpen(true)}
+          disabled={!selectedRequests.length}
         >
-          <Scissors className="mr-2 h-4 w-4" />
           Create Batch
         </Button>
       </div>
-      
+
       <DataTable
-        data={requests}
         columns={columns}
-        onRowClick={handleRequestSelect}
-        selectable
-        selectedRows={selectedRequests}
+        data={Object.values(groupedRequests)}
         isLoading={loading}
+        onRowClick={(row) => {
+          setExpandedRows(prev => 
+            prev.includes(row.sku) 
+              ? prev.filter(id => id !== row.sku)
+              : [...prev, row.sku]
+          )
+        }}
+        renderRowDetails={(row) => {
+          if (!expandedRows.includes(row.sku)) return null
+          
+          return (
+            <div className="p-4 bg-muted/50 border-t border-border">
+              <div className="space-y-4">
+                <div className="text-sm font-medium">Orders</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {row.requests.map(request => (
+                    request.order ? (
+                      <div 
+                        key={request.id}
+                        className="p-4 rounded-lg border bg-card"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="font-mono text-sm">
+                              {request.order.shopify_id}
+                            </div>
+                            <Badge variant="outline">
+                              {request.metadata.quantity} units
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Created {new Date(request.order.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div 
+                        key={request.id}
+                        className="p-4 rounded-lg border bg-card"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="font-mono text-sm">
+                              No order attached
+                            </div>
+                            <Badge variant="outline">
+                              {request.metadata.quantity} units
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Created {new Date(request.createdAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  ))}
+                </div>
+              </div>
+            </div>
+          )
+        }}
       />
 
-      <BatchDialog
-        isOpen={isDialogOpen}
-        onClose={() => setIsDialogOpen(false)}
-        selectedSku={getSelectedSku() || ''}
-        baseQuantity={getBaseQuantity()}
-        onConfirm={handleCreateBatch}
-      />
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Production Batch</DialogTitle>
+            <DialogDescription>
+              Enter the quantity for this production batch.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="quantity">Quantity</Label>
+              <Input
+                id="quantity"
+                type="number"
+                value={quantity}
+                onChange={(e) => setQuantity(Number(e.target.value))}
+                min={1}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateBatch}>
+              Create Batch
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 

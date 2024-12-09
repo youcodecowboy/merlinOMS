@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { MainLayout } from '@/components/layout/main-layout'
-import { Toaster } from 'sonner'
+import { ClientLayout } from '@/components/layout/client-layout'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -20,15 +20,10 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`${inter.className} min-h-screen bg-black text-white antialiased`}>
         <MainLayout>
-          {children}
+          <ClientLayout>
+            {children}
+          </ClientLayout>
         </MainLayout>
-        <Toaster 
-          theme="dark" 
-          position="top-right"
-          closeButton
-          richColors
-          expand
-        />
       </body>
     </html>
   )

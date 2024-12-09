@@ -74,22 +74,58 @@ export async function POST(req: NextRequest) {
       validatedData.bin_id = bin.id;
     }
 
-    // Create inventory item
-    const item = await prisma.inventoryItem.create({
-      data: {
-        ...validatedData,
-        qr_code
-      },
-      include: {
-        current_bin: true
-      }
+    // Use a transaction to create both the item and its initial event
+    const result = await prisma.$transaction(async (tx) => {
+      // Create inventory item
+      const item = await tx.inventoryItem.create({
+        data: {
+          ...validatedData,
+          qr_code
+        },
+        include: {
+          current_bin: true,
+          events: true
+        }
+      });
+
+      // Create initial creation event
+      const event = await tx.event.create({
+        data: {
+          type: 'ITEM_CREATED',
+          item: { connect: { id: item.id } },
+          actor: { connect: { id: '2d40fc18-e02a-41f1-8c4e-92f770133029' } }, // Default to warehouse user for now
+          metadata: {
+            sku: item.sku,
+            initial_status1: item.status1,
+            initial_status2: item.status2,
+            initial_location: item.location,
+            qr_code: item.qr_code,
+            bin_id: item.bin_id
+          }
+        }
+      });
+
+      // Create QR code generation event
+      const qrEvent = await tx.event.create({
+        data: {
+          type: 'QR_GENERATED',
+          item: { connect: { id: item.id } },
+          actor: { connect: { id: '2d40fc18-e02a-41f1-8c4e-92f770133029' } },
+          metadata: {
+            qr_code: item.qr_code,
+            sku: item.sku
+          }
+        }
+      });
+
+      return { ...item, events: [event, qrEvent] };
     });
 
-    console.log('Created inventory item:', item);
+    console.log('Created inventory item with events:', result);
 
     return NextResponse.json({
       success: true,
-      item
+      item: result
     });
 
   } catch (error) {

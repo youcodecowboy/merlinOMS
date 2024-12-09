@@ -203,7 +203,23 @@ export class InventoryAssignmentService {
             status: 'PENDING',
             item_id: itemId,
             order_id: orderId,
-            metadata: {}
+            assigned_to: '2d40fc18-e02a-41f1-8c4e-92f770133029', // Warehouse user ID
+            metadata: {
+              order_item_id: orderItemId,
+              requires_qr_scan: true,
+              requires_bin_assignment: true,
+              target_wash: targetWash,
+              is_universal_match: isUniversalMatch,
+              source: item.location || 'WAREHOUSE',
+              sku: item.sku,
+              target_sku: orderItem.target_sku,
+              order_shopify_id: order.shopify_id,
+              customer_name: order.customer?.profile?.metadata?.firstName 
+                ? `${order.customer.profile.metadata.firstName} ${order.customer.profile.metadata.lastName}`
+                : 'Unknown Customer',
+              customer_email: order.customer?.email || 'unknown@example.com',
+              assigned_at: new Date().toISOString()
+            }
           }
         });
 

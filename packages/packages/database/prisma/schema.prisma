@@ -364,4 +364,16 @@ model WashMapping {
   @@index([wash_group])
 }
 
+model Location {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  type       String
+  status     String   @default("ACTIVE")
+  metadata   Json?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([type])
+}
+
 // Rest of your schema... 

@@ -4,10 +4,11 @@ import { useEffect, useState, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
-import { Plus, QrCode, CheckCircle } from "lucide-react"
+import { Box, QrCode, CheckCircle, Plus } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { QRCodeCanvas } from "qrcode.react"
+import ReactDOM from "react-dom/client"
 
 interface InventoryItem {
   id: string
@@ -41,169 +42,185 @@ export default function InventoryPage() {
   }, []);
 
   const handlePrint = async (e: React.MouseEvent, item: InventoryItem) => {
-    e.stopPropagation(); // Prevent row click when clicking the QR icon
-
-    // Create a temporary container for the QR code
-    const tempContainer = document.createElement('div');
-    tempContainer.style.position = 'absolute';
-    tempContainer.style.left = '-9999px';
-    document.body.appendChild(tempContainer);
-
-    // Render the QR code
-    const qrCode = document.createElement('div');
-    qrCode.innerHTML = `<canvas width="200" height="200"></canvas>`;
-    tempContainer.appendChild(qrCode);
-
-    // Create QR code
-    const qrCanvas = new QRCodeCanvas({
-      value: item.qr_code,
-      size: 200,
-      level: 'H',
-    });
-    const canvas = qrCode.querySelector('canvas');
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(qrCanvas._canvas, 0, 0);
-      }
-    }
-
+    e.stopPropagation();
+    
     try {
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(`
-          <html>
-            <head>
-              <title>QR Code - ${item.sku}</title>
-              <style>
-                body { 
-                  display: flex; 
-                  flex-direction: column; 
-                  align-items: center; 
-                  justify-content: center; 
-                  height: 100vh; 
-                  margin: 0;
-                  font-family: system-ui, -apple-system, sans-serif;
-                }
-                .qr-container { 
-                  text-align: center;
-                  padding: 20px;
-                  border: 1px solid #eee;
-                  border-radius: 8px;
-                  background: white;
-                }
-                .sku { 
-                  font-family: monospace; 
-                  font-size: 16px; 
-                  margin-top: 12px;
-                  color: #374151;
-                }
-              </style>
-            </head>
-            <body>
-              <div class="qr-container">
-                <img src="${canvas?.toDataURL()}" style="width: 200px; height: 200px;" />
-                <div class="sku">${item.sku}</div>
-              </div>
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-        printWindow.focus();
-        printWindow.print();
-        printWindow.close();
+      // Create QR code container
+      const qrCode = document.createElement('div');
+      qrCode.style.position = 'fixed';
+      qrCode.style.left = '-9999px';
+      document.body.appendChild(qrCode);
 
-        // Update printed status
-        const newPrintedItems = new Set(printedItems).add(item.id);
-        setPrintedItems(newPrintedItems);
-        localStorage.setItem('printedQRCodes', JSON.stringify(Array.from(newPrintedItems)));
-        toast.success('QR Code printed successfully');
+      // Render QR code
+      const qrElement = (
+        <QRCodeCanvas
+          value={item.qr_code}
+          size={200}
+          level="H"
+        />
+      );
+
+      // Use ReactDOM to render
+      const root = ReactDOM.createRoot(qrCode);
+      root.render(qrElement);
+
+      // Wait for QR code to render
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Get canvas and print
+      const canvas = qrCode.querySelector('canvas');
+      if (canvas) {
+        const dataUrl = canvas.toDataURL('image/png');
+        const printWindow = window.open('', '', 'width=600,height=600');
+        if (printWindow) {
+          printWindow.document.open();
+          printWindow.document.write(`
+            <html>
+              <head>
+                <title>Print QR Code</title>
+                <style>
+                  body {
+                    margin: 0;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                  }
+                  img {
+                    max-width: 100%;
+                    height: auto;
+                  }
+                </style>
+              </head>
+              <body>
+                <img src="${dataUrl}" />
+                <script>
+                  window.onload = () => {
+                    window.print();
+                    window.close();
+                  };
+                </script>
+              </body>
+            </html>
+          `);
+          printWindow.document.close();
+
+          // Update printed items
+          const newPrintedItems = new Set(printedItems);
+          newPrintedItems.add(item.id);
+          setPrintedItems(newPrintedItems);
+          localStorage.setItem('printedQRCodes', JSON.stringify(Array.from(newPrintedItems)));
+        }
       }
+
+      // Cleanup
+      document.body.removeChild(qrCode);
     } catch (error) {
       console.error('Error printing QR code:', error);
       toast.error('Failed to print QR code');
-    } finally {
-      // Clean up
-      document.body.removeChild(tempContainer);
     }
   };
 
   const columns = [
     {
-      key: "sku" as const,
+      key: "sku",
       label: "SKU",
       sortable: true,
+      render: (value: string | null, row: InventoryItem) => {
+        if (!row?.sku) return '-'
+        return (
+          <div className="flex items-center gap-2">
+            <Box className="h-4 w-4" />
+            <span className="font-mono">{row.sku}</span>
+          </div>
+        )
+      }
     },
     {
-      key: "status1" as const,
+      key: "status1",
       label: "Primary Status",
       sortable: true,
-      render: (value: string) => (
-        <div className={cn(
-          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-          {
-            'bg-blue-500/10 text-blue-500': value === 'PRODUCTION',
-            'bg-green-500/10 text-green-500': value === 'STOCK',
-            'bg-yellow-500/10 text-yellow-500': value === 'WASH',
-          }
-        )}>
-          {value}
-        </div>
-      ),
+      render: (value: string | null, row: InventoryItem) => {
+        if (!row?.status1) return '-'
+        return (
+          <div className={cn(
+            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+            {
+              'bg-blue-500/10 text-blue-500': row.status1 === 'PRODUCTION',
+              'bg-green-500/10 text-green-500': row.status1 === 'STOCK',
+              'bg-yellow-500/10 text-yellow-500': row.status1 === 'WASH',
+              'bg-gray-500/10 text-gray-500': !row.status1
+            }
+          )}>
+            {row.status1 || 'UNKNOWN'}
+          </div>
+        )
+      }
     },
     {
-      key: "status2" as const,
+      key: "status2",
       label: "Secondary Status",
       sortable: true,
-      render: (value: string) => (
-        <div className={cn(
-          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-          {
-            'bg-gray-500/10 text-gray-500': value === 'UNCOMMITTED',
-            'bg-purple-500/10 text-purple-500': value === 'COMMITTED',
-            'bg-orange-500/10 text-orange-500': value === 'ASSIGNED',
-          }
-        )}>
-          {value}
-        </div>
-      ),
+      render: (value: string | null, row: InventoryItem) => {
+        if (!row?.status2) return '-'
+        return (
+          <div className={cn(
+            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+            {
+              'bg-gray-500/10 text-gray-500': row.status2 === 'UNCOMMITTED',
+              'bg-purple-500/10 text-purple-500': row.status2 === 'COMMITTED',
+              'bg-orange-500/10 text-orange-500': row.status2 === 'ASSIGNED',
+              'bg-gray-500/10 text-gray-500': !row.status2
+            }
+          )}>
+            {row.status2 || 'UNKNOWN'}
+          </div>
+        )
+      }
     },
     {
-      key: "location" as const,
+      key: "location",
       label: "Location",
       sortable: true,
+      render: (value: string | null, row: InventoryItem) => row?.location || '-'
     },
     {
-      key: "qr_code" as const,
+      key: "qr_code",
       label: "QR Code",
-      render: (value: string, item: InventoryItem) => (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={(e) => handlePrint(e, item)}
-            className="inline-flex items-center gap-1 hover:text-primary"
-          >
-            <QrCode className="h-4 w-4" />
-          </button>
-          {printedItems.has(item.id) && (
-            <span className="text-green-500">
-              <CheckCircle className="h-4 w-4" />
-            </span>
-          )}
-        </div>
-      ),
+      render: (value: string | null, row: InventoryItem) => {
+        if (!row?.id) return '-'
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={(e) => handlePrint(e, row)}
+              className="inline-flex items-center gap-1 hover:text-primary"
+            >
+              <QrCode className="h-4 w-4" />
+            </button>
+            {printedItems.has(row.id) && (
+              <span className="text-green-500">
+                <CheckCircle className="h-4 w-4" />
+              </span>
+            )}
+          </div>
+        )
+      }
     },
     {
-      key: "current_bin" as const,
+      key: "current_bin",
       label: "Bin",
       sortable: true,
-      render: (bin: InventoryItem['current_bin']) => bin?.code || '-'
+      render: (value: any, row: InventoryItem) => row?.current_bin?.code || '-'
     },
     {
-      key: "updated_at" as const,
+      key: "updated_at",
       label: "Last Updated",
       sortable: true,
-      render: (value: string) => new Date(value).toLocaleString()
-    },
+      render: (value: string | null, row: InventoryItem) => {
+        if (!row?.updated_at) return '-'
+        return new Date(row.updated_at).toLocaleString()
+      }
+    }
   ];
 
   useEffect(() => {

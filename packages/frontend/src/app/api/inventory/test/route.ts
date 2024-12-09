@@ -87,12 +87,12 @@ export async function POST(req: NextRequest) {
 
     let order = null;
     if (createOrder) {
-      // Create and process an order for this item
-      console.log('Creating test order...');
-      const customer = await prisma.customer.findFirst({
-        where: { email: 'test@example.com' }
-      }) || await prisma.customer.create({
-        data: {
+      // Create or find test customer
+      console.log('Creating/finding test customer...');
+      const customer = await prisma.customer.upsert({
+        where: { email: 'test@example.com' },
+        update: {},
+        create: {
           email: 'test@example.com',
           profile: {
             create: {
@@ -107,9 +107,15 @@ export async function POST(req: NextRequest) {
               }
             }
           }
+        },
+        include: {
+          profile: true
         }
       });
+      console.log('Customer created/found:', customer);
 
+      // Create test order
+      console.log('Creating test order...');
       order = await prisma.order.create({
         data: {
           shopify_id: `TEST-${Date.now()}`,
@@ -124,7 +130,12 @@ export async function POST(req: NextRequest) {
           }
         },
         include: {
-          order_items: true
+          order_items: true,
+          customer: {
+            include: {
+              profile: true
+            }
+          }
         }
       });
 
