@@ -2,22 +2,27 @@
 
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { DataTable } from "@/components/ui/data-table"
+import { DataTable, Column } from "@/components/ui/data-table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Box } from "lucide-react"
+import { ArrowLeftCircle as ArrowLeft, Box, Package } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { Progress } from "@/components/ui/progress"
 
 interface BinItem {
   id: string
   sku: string
   qr_code: string
   added_at: string
+  name?: string
+  status1?: string
+  status2?: string
 }
 
 interface BinSlot {
+  id: string
   position: number
   item: BinItem | null
 }
@@ -39,20 +44,20 @@ interface Bin {
 }
 
 export default function BinPage() {
-  const params = useParams<{ binId: string }>()
+  const params = useParams()
   const [bin, setBin] = useState<Bin | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    if (params.binId) {
+    if (params?.binId) {
       fetchBin()
     }
-  }, [params.binId])
+  }, [params?.binId])
 
   const fetchBin = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch(`/api/inventory/bins/${params.binId}`)
+      const response = await fetch(`/api/inventory/bins/${params?.binId}`)
       const data = await response.json()
       
       if (data.success) {
@@ -72,65 +77,49 @@ export default function BinPage() {
   const slots: BinSlot[] = bin ? Array.from({ length: bin.capacity }, (_, i) => {
     const item = bin.items.find(item => item.id === `slot-${i + 1}`)
     return {
+      id: `slot-${i + 1}`,
       position: i + 1,
       item: item || null
     }
   }) : []
 
-  const columns = [
+  const columns: Column<BinSlot>[] = [
     {
       key: "position",
       label: "Position",
-      render: (value: number) => (
-        <div className="font-mono">{value}</div>
+      render: (row) => (
+        <div className="font-mono">
+          {row.position}
+        </div>
       )
     },
     {
       key: "item",
-      label: "Status",
-      render: (value: BinItem | null) => (
-        <Badge variant={value ? "default" : "secondary"}>
-          {value ? "Occupied" : "Empty"}
-        </Badge>
-      )
-    },
-    {
-      key: "item",
-      label: "SKU",
-      render: (value: BinItem | null) => (
-        value ? (
-          <Link 
-            href={`/inventory/${value.id}`}
-            className="font-mono text-primary hover:underline"
-          >
-            {value.sku}
-          </Link>
-        ) : (
-          <span className="text-muted-foreground">-</span>
+      label: "Item",
+      render: (row) => {
+        if (!row.item) return (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Package className="h-4 w-4" />
+            <span>Empty</span>
+          </div>
         )
-      )
-    },
-    {
-      key: "item",
-      label: "QR ID",
-      render: (value: BinItem | null) => (
-        value ? (
-          <div className="font-mono">{value.qr_code}</div>
-        ) : (
-          <span className="text-muted-foreground">-</span>
+        return (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Box className="h-4 w-4" />
+              <span className="font-medium">{row.item.name || 'Unnamed Item'}</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="font-mono">SKU: {row.item.sku}</span>
+              {row.item.status1 && row.item.status2 && (
+                <Badge variant="secondary">
+                  {row.item.status1} • {row.item.status2}
+                </Badge>
+              )}
+            </div>
+          </div>
         )
-      )
-    },
-    {
-      key: "item",
-      label: "Added",
-      render: (value: BinItem | null) => (
-        value ? (
-          <div>{new Date(value.added_at).toLocaleString()}</div>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        )
-      )
+      }
     }
   ]
 
@@ -141,6 +130,8 @@ export default function BinPage() {
   if (!bin) {
     return <div>Bin not found</div>
   }
+
+  const usagePercent = (bin.current_count / bin.capacity) * 100
 
   return (
     <div className="space-y-6">
@@ -164,23 +155,32 @@ export default function BinPage() {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 rounded-lg border bg-card p-4">
-            <div className="flex flex-col">
-              <span className="text-sm font-medium">Capacity</span>
-              <span className="text-2xl font-bold">{bin.capacity}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 rounded-lg border bg-card p-4">
-            <div className="flex flex-col">
-              <span className="text-sm font-medium">Occupied</span>
-              <span className={cn(
-                "text-2xl font-bold",
-                bin.current_count >= bin.capacity ? "text-red-500" :
-                bin.current_count >= bin.capacity * 0.8 ? "text-yellow-500" :
-                "text-green-500"
-              )}>
-                {bin.current_count}
-              </span>
+          <div className="flex flex-col gap-2 rounded-lg border bg-card p-4">
+            <span className="text-sm font-medium text-muted-foreground">Capacity</span>
+            <div className="space-y-2">
+              <div className="flex justify-between text-2xl font-bold">
+                <span>{bin.current_count} / {bin.capacity}</span>
+                <span className={cn(
+                  usagePercent >= 90 ? "text-red-500" :
+                  usagePercent >= 75 ? "text-yellow-500" :
+                  "text-green-500"
+                )}>
+                  {Math.round(usagePercent)}%
+                </span>
+              </div>
+              <Progress 
+                value={usagePercent} 
+                className={cn(
+                  usagePercent >= 90 ? "bg-red-100" :
+                  usagePercent >= 75 ? "bg-yellow-100" :
+                  "bg-green-100"
+                )}
+                indicatorClassName={cn(
+                  usagePercent >= 90 ? "bg-red-500" :
+                  usagePercent >= 75 ? "bg-yellow-500" :
+                  "bg-green-500"
+                )}
+              />
             </div>
           </div>
         </div>

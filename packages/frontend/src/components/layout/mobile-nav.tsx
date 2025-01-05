@@ -108,7 +108,7 @@ const routes: Route[] = [
   {
     label: 'Quality Check',
     icon: CheckCircle,
-    href: '/quality-check',
+    href: '/qc',
     color: "text-green-500",
   },
 ]

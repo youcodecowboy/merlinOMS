@@ -51,14 +51,12 @@ export function WashRequestsTable({ requests }: WashRequestsTableProps) {
     {
       key: 'item',
       label: 'Item',
-      render: (_, row: WashRequest) => {
+      render: (row) => {
         if (!row?.item) return '-'
         return (
           <div className="space-y-1">
-            <div className="font-mono">{row.item.sku || 'Unknown SKU'}</div>
-            <div className="text-xs text-muted-foreground font-mono">
-              {row.item.qr_code || '-'}
-            </div>
+            <div className="font-medium">{row.item.sku}</div>
+            <div className="text-sm text-muted-foreground">QR: {row.item.qr_code}</div>
           </div>
         )
       }
@@ -66,12 +64,12 @@ export function WashRequestsTable({ requests }: WashRequestsTableProps) {
     {
       key: 'order',
       label: 'Order',
-      render: (_, row: WashRequest) => {
+      render: (row) => {
         if (!row?.order) return '-'
         return (
           <div className="space-y-1">
-            <div className="font-mono">{row.order.shopify_id || '-'}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="font-medium">#{row.order.shopify_id}</div>
+            <div className="text-sm text-muted-foreground">
               {row.order.customer?.profile?.metadata?.firstName} {row.order.customer?.profile?.metadata?.lastName}
             </div>
           </div>
@@ -81,13 +79,13 @@ export function WashRequestsTable({ requests }: WashRequestsTableProps) {
     {
       key: 'metadata',
       label: 'Target',
-      render: (_, row: WashRequest) => {
+      render: (row) => {
         if (!row?.metadata) return '-'
         return (
           <div className="space-y-1">
-            <div className="font-mono">{row.metadata.target_sku || '-'}</div>
-            <div className="text-xs text-muted-foreground">
-              {row.metadata.target_wash || '-'}
+            <div className="font-medium">{row.metadata.target_sku}</div>
+            <div className="text-sm text-muted-foreground">
+              {row.metadata.target_wash}
             </div>
           </div>
         )
@@ -96,18 +94,18 @@ export function WashRequestsTable({ requests }: WashRequestsTableProps) {
     {
       key: 'status',
       label: 'Status',
-      render: (value: WashRequest['status']) => {
-        if (!value) return '-'
+      render: (row) => {
+        if (!row?.status) return '-'
         return (
           <Badge
             variant={
-              value === 'COMPLETED' ? 'success' :
-              value === 'IN_PROGRESS' ? 'info' :
-              value === 'FAILED' ? 'destructive' :
-              'warning'
+              row.status === 'COMPLETED' ? 'success' :
+              row.status === 'IN_PROGRESS' ? 'warning' :
+              row.status === 'FAILED' ? 'destructive' :
+              'default'
             }
           >
-            {value}
+            {row.status}
           </Badge>
         )
       }
@@ -115,7 +113,7 @@ export function WashRequestsTable({ requests }: WashRequestsTableProps) {
     {
       key: 'created_at',
       label: 'Created',
-      render: (_, row: WashRequest) => {
+      render: (row) => {
         if (!row?.created_at) return '-'
         return (
           <span className="text-sm">
@@ -127,7 +125,7 @@ export function WashRequestsTable({ requests }: WashRequestsTableProps) {
     {
       key: 'id',
       label: 'Actions',
-      render: (_, row: WashRequest) => {
+      render: (row) => {
         if (!row?.id) return null
         return (
           <div className="flex gap-2">

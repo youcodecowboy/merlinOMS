@@ -3,19 +3,7 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
-import { 
-  Scissors,
-  Timer,
-  PackageSearch,
-  ClipboardList,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  ArrowRight,
-  ChevronDown,
-  ChevronRight
-} from "lucide-react"
-import { cn } from "@/lib/utils"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 
@@ -33,6 +21,12 @@ interface ProductionBatch {
     status: string
     created_at: string
   } | null
+}
+
+type Column = {
+  key: keyof ProductionBatch
+  label: string
+  render?: (row: ProductionBatch) => React.ReactNode
 }
 
 export default function ProductionBatchesPage() {
@@ -53,7 +47,7 @@ export default function ProductionBatchesPage() {
       
       if (data.success) {
         console.log('Fetched batches:', data.batches)
-        setBatches(data.batches)
+        setBatches(data.batches || [])
       } else {
         setError(data.error || 'Failed to fetch batches')
         toast.error(data.error || 'Failed to fetch batches')
@@ -68,17 +62,18 @@ export default function ProductionBatchesPage() {
   }
 
   const toggleRow = (id: string) => {
+    if (!id) return;
     setExpandedRows(prev => 
       prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id]
     )
   }
 
-  const columns = [
+  const columns: Column[] = [
     {
       key: 'id',
       label: 'Batch ID',
-      render: (value: string, row: ProductionBatch) => {
-        console.log('Rendering batch ID:', value, row)
+      render: (row) => {
+        if (!row?.id) return null;
         const isExpanded = expandedRows.includes(row.id)
         return (
           <div className="flex items-center space-x-2">
@@ -100,45 +95,48 @@ export default function ProductionBatchesPage() {
     {
       key: 'sku',
       label: 'SKU',
-      render: (value: string) => (
+      render: (row) => (
         <div className="font-mono">
-          {value || '-'}
+          {row.sku || '-'}
         </div>
       )
     },
     {
       key: 'quantity',
       label: 'Quantity',
-      render: (value: number, row: ProductionBatch) => (
-        <div className="flex items-center space-x-2">
-          <span>{value}</span>
-          <span className="text-muted-foreground text-xs">
-            ({row.items_count} created)
-          </span>
-        </div>
-      )
+      render: (row) => {
+        if (!row) return null;
+        return (
+          <div className="flex items-center space-x-2">
+            <span>{row.quantity || 0}</span>
+            <span className="text-muted-foreground text-xs">
+              ({row.items_count || 0} created)
+            </span>
+          </div>
+        );
+      }
     },
     {
       key: 'status',
       label: 'Status',
-      render: (value: string) => (
+      render: (row) => (
         <Badge
           variant={
-            value === 'PENDING'
+            row.status === 'PENDING'
               ? 'warning'
-              : value === 'IN_PROGRESS'
+              : row.status === 'IN_PROGRESS'
               ? 'secondary'
               : 'success'
           }
         >
-          {value}
+          {row.status || 'UNKNOWN'}
         </Badge>
       )
     },
     {
       key: 'created_at',
       label: 'Created',
-      render: (value: string) => new Date(value).toLocaleString()
+      render: (row) => row.created_at ? new Date(row.created_at).toLocaleString() : '-'
     }
   ]
 
@@ -158,10 +156,12 @@ export default function ProductionBatchesPage() {
         data={batches}
         isLoading={isLoading}
         onRowClick={(row) => {
-          toggleRow(row.id)
+          if (row?.id) {
+            toggleRow(row.id)
+          }
         }}
-        renderRowDetails={(row) => {
-          if (!expandedRows.includes(row.id)) return null
+        renderRowDetails={(row: ProductionBatch) => {
+          if (!row?.id || !expandedRows.includes(row.id)) return null;
           
           return (
             <div className="p-4 bg-muted/50 border-t border-border">
@@ -172,7 +172,7 @@ export default function ProductionBatchesPage() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="text-sm text-muted-foreground">Production Requests</div>
-                        <Badge variant="outline">{row.requests_count}</Badge>
+                        <Badge variant="outline">{row.requests_count || 0}</Badge>
                       </div>
                     </div>
                   </div>
@@ -180,7 +180,7 @@ export default function ProductionBatchesPage() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="text-sm text-muted-foreground">Items Created</div>
-                        <Badge variant="outline">{row.items_count} / {row.quantity}</Badge>
+                        <Badge variant="outline">{row.items_count || 0} / {row.quantity || 0}</Badge>
                       </div>
                     </div>
                   </div>

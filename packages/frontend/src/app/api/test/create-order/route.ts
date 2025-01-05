@@ -1,48 +1,80 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { TEST_CUSTOMERS, TEST_SKUS, createTestOrder } from '@/lib/test-data';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   try {
-    // Get or create test customer
-    let customer = await prisma.customer.findFirst();
-    
-    if (!customer) {
-      customer = await prisma.customer.create({
-        data: {
-          email: 'test@example.com'
+    // Create test order with realistic data
+    const testCustomer = TEST_CUSTOMERS[0];
+    const testOrder = createTestOrder({
+      customerId: testCustomer.id,
+      items: [
+        {
+          sku: TEST_SKUS.STANDARD.RAW,
+          quantity: 1,
+          target_sku: TEST_SKUS.STANDARD.STARDUST
+        },
+        {
+          sku: TEST_SKUS.SLIM.RAW,
+          quantity: 2,
+          target_sku: TEST_SKUS.SLIM.INDIGO
         }
-      });
-    }
+      ]
+    });
 
-    // Create test order
-    const order = await prisma.order.create({
-      data: {
-        shopify_id: `TEST-${Date.now()}`,
-        status: 'NEW',
-        customer_id: customer.id,
-        metadata: {
-          source: 'TEST'
+    // Create customer if doesn't exist
+    const customer = await prisma.customer.upsert({
+      where: { id: testCustomer.id },
+      update: {},
+      create: {
+        id: testCustomer.id,
+        email: testCustomer.email,
+        profile: {
+          create: {
+            firstName: testCustomer.profile.firstName,
+            lastName: testCustomer.profile.lastName,
+            metadata: {
+              phone: testCustomer.profile.phone,
+              address: testCustomer.profile.address
+            }
+          }
         }
       }
     });
 
-    // Create order item
-    const orderItem = await prisma.orderItem.create({
+    // Create order with items
+    const order = await prisma.order.create({
       data: {
-        order_id: order.id,
-        target_sku: 'ST-32-X-36-RAW',
-        quantity: 1,
-        status: 'PENDING_ASSIGNMENT',
-        metadata: {
-          universal_sku: 'ST-32-X-36-RAW'
-        }
+        id: testOrder.id,
+        order_number: testOrder.order_number,
+        shopify_id: testOrder.shopify_id,
+        status: testOrder.status,
+        customer: {
+          connect: { id: customer.id }
+        },
+        order_items: {
+          create: testOrder.items.map(item => ({
+            sku: item.sku,
+            target_sku: item.target_sku,
+            quantity: item.quantity,
+            status: item.status
+          }))
+        },
+        metadata: testOrder.metadata
+      },
+      include: {
+        customer: {
+          include: {
+            profile: true
+          }
+        },
+        order_items: true
       }
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Test order created successfully',
-      data: { customer, order, orderItem }
+      order
     });
 
   } catch (error) {

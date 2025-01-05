@@ -11,132 +11,68 @@ import {
 } from "@/components/ui/table"
 
 export interface Column<T> {
-  key: string;
-  label: string;
-  render?: ((value: any, row: T) => React.ReactNode) | ((row: T) => React.ReactNode);
-  sortable?: boolean;
+  key: string
+  label: string
+  sortable?: boolean
+  render?: (row: T) => React.ReactNode
 }
 
-export interface DataTableProps<TData> {
-  data: TData[];
-  columns: Column<TData>[];
-  onRowClick?: (row: TData) => void;
-  rowClassName?: (row: TData) => string;
-  renderRowDetails?: (row: TData) => React.ReactNode;
-  isLoading?: boolean;
+interface DataTableProps<T> {
+  data: T[]
+  columns: Column<T>[]
+  isLoading?: boolean
+  onRowClick?: (row: T) => void
 }
 
-export function DataTable<TData>({
+export function DataTable<T extends { id: string }>({
   data,
   columns,
+  isLoading,
   onRowClick,
-  rowClassName,
-  renderRowDetails,
-  isLoading = false
-}: DataTableProps<TData>) {
-  const handleRowClick = (row: TData) => {
-    if (!row) return
-    onRowClick?.(row)
-  }
-
-  const renderCell = (column: Column<TData>, row: TData) => {
-    if (!column.render) {
-      return (row as any)?.[column.key] || '-'
-    }
-
-    try {
-      // Try two-argument version first
-      const result = (column.render as (value: any, row: TData) => React.ReactNode)(
-        (row as any)?.[column.key],
-        row
-      )
-      return result
-    } catch {
-      // If that fails, try one-argument version
-      try {
-        const result = (column.render as (row: TData) => React.ReactNode)(row)
-        return result
-      } catch {
-        // If both fail, return default
-        return (row as any)?.[column.key] || '-'
-      }
-    }
-  }
-
+}: DataTableProps<T>) {
   if (isLoading) {
     return (
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {columns.map((column) => (
-                <TableHead key={column.key}>{column.label}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow>
-              <TableCell 
-                colSpan={columns.length} 
-                className="h-24 text-center"
-              >
-                Loading...
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+      <div className="flex items-center justify-center h-32">
+        <div className="text-muted-foreground">Loading...</div>
       </div>
     )
   }
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          {columns.map((column) => (
+            <TableHead key={column.key}>{column.label}</TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {data.length === 0 ? (
           <TableRow>
-            {columns.map((column) => (
-              <TableHead key={column.key}>{column.label}</TableHead>
-            ))}
+            <TableCell
+              colSpan={columns.length}
+              className="text-center text-muted-foreground h-32"
+            >
+              No data available
+            </TableCell>
           </TableRow>
-        </TableHeader>
-        <TableBody>
-          {!data || data.length === 0 ? (
-            <TableRow>
-              <TableCell 
-                colSpan={columns.length} 
-                className="h-24 text-center"
-              >
-                No results found.
-              </TableCell>
+        ) : (
+          data.map((row) => (
+            <TableRow
+              key={row.id}
+              onClick={() => onRowClick?.(row)}
+              className={onRowClick ? "cursor-pointer" : undefined}
+            >
+              {columns.map((column) => (
+                <TableCell key={column.key}>
+                  {column.render ? column.render(row) : (row as any)[column.key]}
+                </TableCell>
+              ))}
             </TableRow>
-          ) : (
-            data.map((row: TData, index) => (
-              <React.Fragment key={index}>
-                <TableRow
-                  onClick={() => handleRowClick(row)}
-                  className={`
-                    ${onRowClick ? 'cursor-pointer hover:bg-muted/50' : ''}
-                    ${rowClassName?.(row) || ""}
-                  `}
-                >
-                  {columns.map((column) => (
-                    <TableCell key={column.key}>
-                      {renderCell(column, row)}
-                    </TableCell>
-                  ))}
-                </TableRow>
-                {renderRowDetails && (
-                  <TableRow>
-                    <TableCell colSpan={columns.length} className="p-0">
-                      {renderRowDetails(row)}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </React.Fragment>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </div>
+          ))
+        )}
+      </TableBody>
+    </Table>
   )
 } 

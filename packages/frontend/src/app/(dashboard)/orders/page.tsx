@@ -8,6 +8,7 @@ import { Plus, Settings, Trash } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { Column } from "@/components/ui/data-table"
 
 interface OrderItem {
   id: string
@@ -40,14 +41,14 @@ interface Order {
   }
 }
 
-const columns = [
+const columns: Column<Order>[] = [
   {
     key: "shopify_id",
     label: "Order ID",
     sortable: true,
-    render: (value: string, row: Order) => (
+    render: (row) => (
       <div className="font-medium">
-        <div>{value}</div>
+        <div>{row.shopify_id}</div>
         <div className="text-xs text-muted-foreground font-mono">
           {row.id}
         </div>
@@ -58,73 +59,57 @@ const columns = [
     key: "status",
     label: "Status",
     sortable: true,
-    render: (value: string) => (
+    render: (row) => (
       <div className={cn(
         "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
         {
-          'bg-gray-500/10 text-gray-500': value === 'NEW',
-          'bg-blue-500/10 text-blue-500': value === 'PENDING_ASSIGNMENT',
-          'bg-purple-500/10 text-purple-500': value === 'ASSIGNED',
-          'bg-yellow-500/10 text-yellow-500': value === 'IN_PRODUCTION',
-          'bg-orange-500/10 text-orange-500': value === 'WASH',
-          'bg-green-500/10 text-green-500': value === 'COMPLETED',
-          'bg-red-500/10 text-red-500': value === 'CANCELLED',
+          'bg-gray-500/10 text-gray-500': row.status === 'NEW',
+          'bg-blue-500/10 text-blue-500': row.status === 'PENDING_ASSIGNMENT',
+          'bg-purple-500/10 text-purple-500': row.status === 'ASSIGNED',
+          'bg-yellow-500/10 text-yellow-500': row.status === 'IN_PRODUCTION',
+          'bg-orange-500/10 text-orange-500': row.status === 'WASH',
+          'bg-green-500/10 text-green-500': row.status === 'COMPLETED',
+          'bg-red-500/10 text-red-500': row.status === 'CANCELLED',
         }
       )}>
-        {value.replace(/_/g, ' ')}
+        {row.status.replace(/_/g, ' ')}
       </div>
-    ),
+    )
   },
   {
     key: "customer",
     label: "Customer",
-    render: (value: Order['customer']) => (
+    render: (row) => (
       <div>
         <div className="font-medium">
-          {value.profile?.metadata.firstName} {value.profile?.metadata.lastName}
+          {row.customer.profile?.metadata.firstName} {row.customer.profile?.metadata.lastName}
         </div>
         <div className="text-sm text-muted-foreground">
-          {value.email}
+          {row.customer.email}
         </div>
       </div>
-    ),
+    )
   },
   {
-    key: "order_items",
+    key: "items",
     label: "Items",
-    render: (value: OrderItem[]) => (
-      <div className="space-y-1">
-        {value.map((item) => (
+    render: (row) => (
+      <div>
+        {row.order_items.map((item) => (
           <div key={item.id} className="text-sm">
             <span className="font-mono">{item.target_sku}</span>
-            <span className="text-muted-foreground"> × {item.quantity}</span>
+            <span className="text-muted-foreground ml-2">×{item.quantity}</span>
           </div>
         ))}
       </div>
-    ),
-  },
-  {
-    key: "metadata",
-    label: "Priority",
-    render: (value: Order['metadata']) => value?.priority ? (
-      <div className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-        {
-          'bg-green-500/10 text-green-500': value.priority === 'LOW',
-          'bg-yellow-500/10 text-yellow-500': value.priority === 'MEDIUM',
-          'bg-red-500/10 text-red-500': value.priority === 'HIGH',
-        }
-      )}>
-        {value.priority}
-      </div>
-    ) : null,
+    )
   },
   {
     key: "created_at",
     label: "Created",
     sortable: true,
-    render: (value: string) => new Date(value).toLocaleString()
-  },
+    render: (row) => new Date(row.created_at).toLocaleString()
+  }
 ]
 
 export default function OrdersPage() {

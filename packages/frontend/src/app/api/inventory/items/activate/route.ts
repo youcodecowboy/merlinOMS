@@ -27,80 +27,86 @@ export async function POST(request: NextRequest) {
         throw new Error('Item must be in PRODUCTION status to be activated');
       }
 
-      // 2. Update item status
+      // 2. Check if item is committed to an order
+      const metadata = item.metadata as any;
+      const committedOrderId = metadata?.committed_to_order_id;
+
+      if (item.status2 === 'COMMITTED' && committedOrderId) {
+        // Item is committed to an order - do hard assignment
+        const updatedItem = await tx.inventoryItem.update({
+          where: { id: item.id },
+          data: {
+            status1: 'STOCK',
+            status2: 'ASSIGNED',
+            metadata: {
+              ...metadata,
+              activated_at: new Date().toISOString()
+            }
+          }
+        });
+
+        // Find the order item waiting for this item
+        const orderItem = await tx.orderItem.findFirst({
+          where: {
+            order_id: committedOrderId,
+            status: 'PENDING_ASSIGNMENT'
+          }
+        });
+
+        if (orderItem) {
+          // Update order item status and create assignment
+          await tx.orderItem.update({
+            where: { id: orderItem.id },
+            data: {
+              status: 'ASSIGNED',
+              assigned_item_id: item.id
+            }
+          });
+
+          // Create wash request
+          const washRequest = await tx.request.create({
+            data: {
+              type: 'WASH',
+              status: 'PENDING',
+              item_id: item.id,
+              order_id: committedOrderId,
+              metadata: {
+                sku: item.sku,
+                universal_sku: metadata?.universal_sku,
+                wash_code: metadata?.wash || 'RAW',
+                priority: 'NORMAL'
+              }
+            }
+          });
+
+          return {
+            success: true,
+            action: 'ASSIGNED_TO_ORDER',
+            item: updatedItem,
+            orderItem,
+            washRequest
+          };
+        }
+      }
+
+      // Item is not committed - just activate it
       const updatedItem = await tx.inventoryItem.update({
         where: { id: item.id },
         data: {
           status1: 'STOCK',
+          status2: 'UNCOMMITTED',
           metadata: {
-            ...item.metadata,
+            ...metadata,
             activated_at: new Date().toISOString()
           }
         }
       });
 
-      // 3. Check if this item is committed to a waitlist entry
-      if (item.status2 === 'COMMITTED') {
-        const metadata = item.metadata as any;
-        const orderId = metadata?.committed_to_order_id;
-
-        if (orderId) {
-          // Find the order item in waitlist
-          const orderItem = await tx.orderItem.findFirst({
-            where: {
-              order_id: orderId,
-              status: 'PENDING_ASSIGNMENT',
-              waitlist_entry: {
-                metadata: {
-                  path: ['committed_item_id'],
-                  equals: item.id
-                }
-              }
-            },
-            include: {
-              waitlist_entry: true
-            }
-          });
-
-          if (orderItem) {
-            // Update order item status
-            await tx.orderItem.update({
-              where: { id: orderItem.id },
-              data: {
-                status: 'ASSIGNED',
-                assigned_item_id: item.id
-              }
-            });
-
-            // Delete waitlist entry
-            if (orderItem.waitlist_entry) {
-              await tx.productionWaitlist.delete({
-                where: { id: orderItem.waitlist_entry.id }
-              });
-            }
-
-            // Create wash request
-            const washRequest = await tx.request.create({
-              data: {
-                type: 'WASH',
-                status: 'PENDING',
-                item_id: item.id,
-                order_id: orderId,
-                metadata: {
-                  sku: item.sku,
-                  universal_sku: item.metadata?.universal_sku,
-                  wash_code: item.metadata?.wash || 'RAW',
-                  priority: 'NORMAL'
-                }
-              }
-            });
-
-            return { updatedItem, orderItem, washRequest };
-          }
-        }
-      }
-
-      return { updatedItem };
+      return {
+        success: true,
+        action: 'ACTIVATED',
+        item: updatedItem
+      };
     });
 
     return NextResponse.json({

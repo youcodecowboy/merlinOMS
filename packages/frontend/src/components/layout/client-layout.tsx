@@ -2,6 +2,7 @@
 
 import { Toaster } from "sonner"
 import { DevDashboard } from "@/components/dev/dashboard"
+import { FloatingQRScanner } from "@/components/qr/FloatingQRScanner"
 
 interface ClientLayoutProps {
   children: React.ReactNode
@@ -19,6 +20,7 @@ export function ClientLayout({ children }: ClientLayoutProps) {
         expand
       />
       <DevDashboard />
+      <FloatingQRScanner />
     </>
   )
 } 

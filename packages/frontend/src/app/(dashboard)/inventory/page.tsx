@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { DataTable } from "@/components/ui/data-table"
+import { DataTable, Column } from "@/components/ui/data-table"
 import { Box, QrCode, CheckCircle, Plus } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -121,107 +121,95 @@ export default function InventoryPage() {
     }
   };
 
-  const columns = [
+  const columns: Column<InventoryItem>[] = [
     {
       key: "sku",
       label: "SKU",
       sortable: true,
-      render: (value: string | null, row: InventoryItem) => {
-        if (!row?.sku) return '-'
-        return (
-          <div className="flex items-center gap-2">
-            <Box className="h-4 w-4" />
-            <span className="font-mono">{row.sku}</span>
-          </div>
-        )
-      }
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <Box className="h-4 w-4" />
+          <span className="font-mono">{row.sku || '-'}</span>
+        </div>
+      )
     },
     {
       key: "status1",
       label: "Primary Status",
       sortable: true,
-      render: (value: string | null, row: InventoryItem) => {
-        if (!row?.status1) return '-'
-        return (
-          <div className={cn(
-            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-            {
-              'bg-blue-500/10 text-blue-500': row.status1 === 'PRODUCTION',
-              'bg-green-500/10 text-green-500': row.status1 === 'STOCK',
-              'bg-yellow-500/10 text-yellow-500': row.status1 === 'WASH',
-              'bg-gray-500/10 text-gray-500': !row.status1
-            }
-          )}>
-            {row.status1 || 'UNKNOWN'}
-          </div>
-        )
-      }
+      render: (row) => (
+        <div className={cn(
+          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+          {
+            'bg-blue-500/10 text-blue-500': row.status1 === 'PRODUCTION',
+            'bg-green-500/10 text-green-500': row.status1 === 'STOCK',
+            'bg-yellow-500/10 text-yellow-500': row.status1 === 'WASH',
+            'bg-gray-500/10 text-gray-500': !row.status1
+          }
+        )}>
+          {row.status1 || 'UNKNOWN'}
+        </div>
+      )
     },
     {
       key: "status2",
       label: "Secondary Status",
       sortable: true,
-      render: (value: string | null, row: InventoryItem) => {
-        if (!row?.status2) return '-'
-        return (
-          <div className={cn(
-            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-            {
-              'bg-gray-500/10 text-gray-500': row.status2 === 'UNCOMMITTED',
-              'bg-purple-500/10 text-purple-500': row.status2 === 'COMMITTED',
-              'bg-orange-500/10 text-orange-500': row.status2 === 'ASSIGNED',
-              'bg-gray-500/10 text-gray-500': !row.status2
-            }
-          )}>
-            {row.status2 || 'UNKNOWN'}
-          </div>
-        )
-      }
+      render: (row) => (
+        <div className={cn(
+          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+          {
+            'bg-gray-500/10 text-gray-500': row.status2 === 'UNCOMMITTED',
+            'bg-purple-500/10 text-purple-500': row.status2 === 'COMMITTED',
+            'bg-orange-500/10 text-orange-500': row.status2 === 'ASSIGNED',
+            'bg-gray-500/10 text-gray-500': !row.status2
+          }
+        )}>
+          {row.status2 || 'UNKNOWN'}
+        </div>
+      )
     },
     {
       key: "location",
       label: "Location",
       sortable: true,
-      render: (value: string | null, row: InventoryItem) => row?.location || '-'
+      render: (row) => row.location || '-'
     },
     {
       key: "qr_code",
       label: "QR Code",
-      render: (value: string | null, row: InventoryItem) => {
-        if (!row?.id) return '-'
-        return (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={(e) => handlePrint(e, row)}
-              className="inline-flex items-center gap-1 hover:text-primary"
-            >
-              <QrCode className="h-4 w-4" />
-            </button>
-            {printedItems.has(row.id) && (
-              <span className="text-green-500">
-                <CheckCircle className="h-4 w-4" />
-              </span>
-            )}
-          </div>
-        )
-      }
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              handlePrint(e, row)
+            }}
+            className="inline-flex items-center gap-1 hover:text-primary"
+          >
+            <QrCode className="h-4 w-4" />
+          </button>
+          {printedItems.has(row.id) && (
+            <span className="text-green-500">
+              <CheckCircle className="h-4 w-4" />
+            </span>
+          )}
+        </div>
+      )
     },
     {
       key: "current_bin",
       label: "Bin",
       sortable: true,
-      render: (value: any, row: InventoryItem) => row?.current_bin?.code || '-'
+      render: (row) => row.current_bin?.code || '-'
     },
     {
       key: "updated_at",
       label: "Last Updated",
       sortable: true,
-      render: (value: string | null, row: InventoryItem) => {
-        if (!row?.updated_at) return '-'
-        return new Date(row.updated_at).toLocaleString()
-      }
+      render: (row) => row.updated_at ? new Date(row.updated_at).toLocaleString() : '-'
     }
-  ];
+  ]
 
   useEffect(() => {
     const fetchItems = async () => {

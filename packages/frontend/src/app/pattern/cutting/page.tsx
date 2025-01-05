@@ -19,6 +19,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 
 interface CompletionFormData {
   fabricCode: string
@@ -38,15 +39,23 @@ interface SkuInfo {
 
 interface CuttingRequest {
   id: string
-  status: string
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED'
   metadata: {
     pattern_request_ids: string[]
-    sku_groups: {
+    sku_groups: Array<{
       sku: string
       quantity: number
       pattern_requests: string[]
-    }[]
+    }>
     item_ids: string[]
+    started_at?: string
+    completion?: {
+      fabricCode: string
+      fabricConsumption: number
+      shadeCode: string
+      notes?: string
+      completed_at: string
+    }
   }
   created_at: string
 }
@@ -122,16 +131,16 @@ export default function CuttingRequestsPage() {
       key: 'select',
       label: '',
       render: (row: CuttingRequest) => {
-        const rowId = row?.id
-        if (!rowId) return null
+        console.log('Rendering select column for row:', row)
+        if (!row?.id) return null
         return (
           <Checkbox
-            checked={selectedRequests.includes(rowId)}
+            checked={selectedRequests.includes(row.id)}
             onCheckedChange={(checked: boolean) => {
               setSelectedRequests(prev => 
                 checked 
-                  ? [...prev, rowId]
-                  : prev.filter(id => id !== rowId)
+                  ? [...prev, row.id]
+                  : prev.filter(id => id !== row.id)
               )
             }}
             aria-label="Select row"
@@ -143,9 +152,9 @@ export default function CuttingRequestsPage() {
       key: 'id',
       label: 'Request #',
       render: (row: CuttingRequest) => {
-        const rowId = row?.id
-        if (!rowId) return null
-        const isExpanded = expandedRows.includes(rowId)
+        console.log('Rendering id column for row:', row)
+        if (!row?.id) return null
+        const isExpanded = expandedRows.includes(row.id)
         return (
           <div className="flex items-center space-x-2">
             <Button
@@ -153,12 +162,12 @@ export default function CuttingRequestsPage() {
               size="sm"
               onClick={(e) => {
                 e.stopPropagation()
-                toggleRow(rowId)
+                toggleRow(row.id)
               }}
             >
               {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </Button>
-            <span>{rowId}</span>
+            <span>{row.id}</span>
           </div>
         )
       }
@@ -167,23 +176,27 @@ export default function CuttingRequestsPage() {
       key: 'metadata',
       label: 'Total Quantity',
       render: (row: CuttingRequest) => {
-        if (!row?.metadata?.sku_groups) return 0
-        return row.metadata.sku_groups.reduce((total, group) => total + (group.quantity || 0), 0)
+        console.log('Rendering metadata column for row:', row)
+        if (!row?.metadata?.sku_groups) return '-'
+        const total = row.metadata.sku_groups.reduce((sum, group) => sum + (Number(group.quantity) || 0), 0)
+        return total > 0 ? total : '-'
       }
     },
     {
       key: 'status',
       label: 'Status',
       render: (row: CuttingRequest) => {
-        if (!row) return null
-        const status = row.status || 'UNKNOWN'
+        console.log('Rendering status column for row:', row)
+        if (!row?.status) return null
         return (
-          <div className={
-            status === 'PENDING' ? 'text-yellow-600' :
-            status === 'IN_PROGRESS' ? 'text-blue-600' :
-            'text-green-600'
-          }>
-            {status}
+          <div className={cn(
+            "font-medium",
+            row.status === 'PENDING' ? 'text-yellow-500' :
+            row.status === 'IN_PROGRESS' ? 'text-blue-500' :
+            row.status === 'COMPLETED' ? 'text-green-500' :
+            'text-muted-foreground'
+          )}>
+            {row.status}
           </div>
         )
       }
@@ -192,16 +205,21 @@ export default function CuttingRequestsPage() {
       key: 'created_at',
       label: 'Created At',
       render: (row: CuttingRequest) => {
-        if (!row) return 'Unknown'
-        return row.created_at ? new Date(row.created_at).toLocaleDateString() : 'Unknown'
+        console.log('Rendering created_at column for row:', row)
+        if (!row?.created_at) return '-'
+        return (
+          <div className="font-mono">
+            {new Date(row.created_at).toLocaleString()}
+          </div>
+        )
       }
     },
     {
       key: 'actions',
       label: 'Actions',
       render: (row: CuttingRequest) => {
-        const rowId = row?.id
-        if (!rowId) return null
+        console.log('Rendering actions column for row:', row)
+        if (!row?.id || !row?.status) return null
 
         if (row.status === 'PENDING') {
           return (
@@ -210,7 +228,7 @@ export default function CuttingRequestsPage() {
               size="sm"
               onClick={(e: React.MouseEvent) => {
                 e.stopPropagation()
-                handleStartCutting(rowId)
+                handleStartCutting(row.id)
               }}
             >
               <Scissors className="h-4 w-4 mr-2" />
@@ -226,7 +244,7 @@ export default function CuttingRequestsPage() {
               size="sm"
               onClick={(e: React.MouseEvent) => {
                 e.stopPropagation()
-                handleMarkComplete(rowId)
+                handleMarkComplete(row.id)
               }}
             >
               <CheckCircle className="h-4 w-4 mr-2" />
@@ -290,6 +308,7 @@ export default function CuttingRequestsPage() {
   }
 
   const requests = data?.requests || []
+  console.log('Rendering table with requests:', requests)
 
   if (!Array.isArray(requests) || requests.length === 0) {
     return (
@@ -314,7 +333,7 @@ export default function CuttingRequestsPage() {
 
       <div className="flex justify-end space-x-4">
         <Button
-          onClick={handleStartCutting}
+          onClick={() => handleStartCutting(selectedRequests[0])}
           disabled={selectedRequests.length === 0}
         >
           <Scissors className="mr-2 h-4 w-4" />
@@ -326,30 +345,35 @@ export default function CuttingRequestsPage() {
         data={requests}
         columns={columns}
         onRowClick={(row) => {
-          if (row.id) {
+          if (row?.id) {
             toggleRow(row.id)
           }
         }}
         renderRowDetails={(row) => {
-          if (!row.id || !expandedRows.includes(row.id)) return null
+          if (!row?.id || !expandedRows.includes(row.id)) return null
           
           return (
             <div className="p-4 bg-muted/50 border-t border-border">
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {(row.metadata?.sku_groups?.length ?? 0) > 0 ? (
-                    row.metadata.sku_groups.map((group) => (
+                    row.metadata.sku_groups.map((group, index) => (
                       <div 
-                        key={`${row.id}-${group.sku}`} 
+                        key={`${row.id}-${group.sku}-${index}`} 
                         className="p-3 rounded-lg border border-border bg-background"
                       >
                         <div className="flex flex-col space-y-2">
                           <div className="flex justify-between items-center">
-                            <span className="font-medium text-foreground">{group.sku || 'UNKNOWN'}</span>
-                            <span className="text-sm text-muted-foreground">Qty: {group.quantity || 0}</span>
+                            <span className="font-medium text-foreground">{group.sku}</span>
+                            <span className="text-sm text-muted-foreground">Qty: {group.quantity}</span>
                           </div>
                           <div className="text-sm space-y-1 text-muted-foreground">
                             <div>Pattern Requests: {group.pattern_requests?.length || 0}</div>
+                            {group.pattern_requests?.length > 0 && (
+                              <div className="font-mono text-xs">
+                                {group.pattern_requests.join(', ')}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -358,12 +382,14 @@ export default function CuttingRequestsPage() {
                     <div className="text-muted-foreground col-span-3">No SKUs found</div>
                   )}
                 </div>
-                <div className="mt-4 text-sm">
-                  <strong className="text-foreground">Pattern Request IDs:</strong>
-                  <p className="text-muted-foreground mt-1 font-mono">
-                    {row.metadata.pattern_request_ids.join(', ') || 'None'}
-                  </p>
-                </div>
+                {row.metadata?.pattern_request_ids?.length > 0 && (
+                  <div className="mt-4 text-sm">
+                    <strong className="text-foreground">Pattern Request IDs:</strong>
+                    <p className="text-muted-foreground mt-1 font-mono">
+                      {row.metadata.pattern_request_ids.join(', ')}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )

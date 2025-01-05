@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { ClearTestDataButton } from '@/components/dev/ClearTestDataButton';
 
 interface TestOrder {
   id: string;
@@ -287,12 +288,20 @@ export default function DevDashboard() {
             <CardDescription>Initialize test data and users</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button 
-              onClick={runSetup}
-              disabled={settingUp}
-            >
-              {settingUp ? 'Setting up...' : 'Run Setup'}
-            </Button>
+            <div className="space-y-4">
+              <Button 
+                onClick={runSetup}
+                disabled={settingUp}
+              >
+                {settingUp ? 'Setting up...' : 'Run Setup'}
+              </Button>
+              <div className="mt-4">
+                <ClearTestDataButton onClearComplete={() => {
+                  toast.success('Test data cleared successfully');
+                  window.location.reload();
+                }} />
+              </div>
+            </div>
           </CardContent>
         </Card>
 

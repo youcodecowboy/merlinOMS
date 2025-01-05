@@ -80,7 +80,7 @@ export default function ProductionPage() {
     {
       key: "select",
       label: "",
-      render: (value, row) => (
+      render: (row) => (
         <input
           type="checkbox"
           checked={row.requests.every(r => selectedRequests.includes(r.id))}
@@ -92,52 +92,34 @@ export default function ProductionPage() {
               setSelectedRequests(prev => prev.filter(id => !requestIds.includes(id)))
             }
           }}
-          onClick={(e) => e.stopPropagation()}
-          className="h-4 w-4 rounded border-gray-300"
         />
       )
     },
     {
       key: "sku",
       label: "SKU",
-      render: (value, row) => (
+      render: (row) => (
         <div className="font-mono">{row.sku}</div>
       )
     },
     {
       key: "totalQuantity",
       label: "Total Quantity",
-      render: (value, row) => row.totalQuantity.toString()
+      render: (row) => row.totalQuantity.toString()
     },
     {
       key: "requests",
       label: "Requests",
-      render: (value, row) => row.requests.length.toString()
+      render: (row) => row.requests.length.toString()
     },
     {
       key: "status",
       label: "Status",
-      render: (value, row) => (
-        <Badge
-          variant={
-            row.status === 'PENDING'
-              ? 'warning'
-              : row.status === 'IN_PROGRESS'
-              ? 'secondary'
-              : 'success'
-          }
-        >
+      render: (row) => (
+        <Badge variant={getStatusVariant(row.status)}>
           {row.status}
         </Badge>
       )
-    },
-    {
-      key: "createdAt",
-      label: "Created",
-      render: (value, row) => {
-        const date = new Date(row.createdAt)
-        return date.toLocaleString()
-      }
     }
   ]
 

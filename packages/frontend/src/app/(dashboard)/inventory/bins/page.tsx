@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { DataTable } from "@/components/ui/data-table"
-import { Plus } from "lucide-react"
+import { DataTable, Column } from "@/components/ui/data-table"
+import { Plus, Package } from "lucide-react"
 import { CreateBinDialog } from "@/components/bins/CreateBinDialog"
 import { toast } from "sonner"
 import Link from "next/link"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
 
 interface Bin {
   id: string
@@ -60,17 +62,18 @@ export default function BinsPage() {
     fetchBins()
   }
 
-  const columns = [
+  const columns: Column<Bin>[] = [
     {
-      key: "code",
-      label: "Bin Code",
+      key: "id",
+      label: "Bin ID",
       sortable: true,
-      render: (value: string, row: Bin) => (
-        <Link 
-          href={`/inventory/bins/${row.id}`}
-          className="font-mono text-primary hover:underline"
-        >
-          {value}
+      render: (row) => (
+        <Link href={`/inventory/bins/${row.id}`} className="flex items-center gap-2">
+          <Package className="h-4 w-4 text-muted-foreground" />
+          <span className="font-mono">{row.code}</span>
+          <Badge variant={row.is_active ? "outline" : "destructive"} className="ml-2">
+            {row.is_active ? "Active" : "Inactive"}
+          </Badge>
         </Link>
       )
     },
@@ -78,81 +81,57 @@ export default function BinsPage() {
       key: "type",
       label: "Type",
       sortable: true,
-      render: (value: string) => (
-        <div className={cn(
-          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-          {
-            'bg-blue-500/10 text-blue-500': value === 'STORAGE',
-            'bg-yellow-500/10 text-yellow-500': value === 'PROCESSING',
-            'bg-green-500/10 text-green-500': value === 'SHIPPING',
-            'bg-gray-500/10 text-gray-500': value === 'TEMPORARY',
-          }
-        )}>
-          {value}
+      render: (row) => (
+        <Badge variant="secondary">
+          {row.type}
+        </Badge>
+      )
+    },
+    {
+      key: "location",
+      label: "Location",
+      sortable: true,
+      render: (row) => (
+        <div className="font-mono">
+          Zone {row.zone} • Rack {row.metadata?.rack || '?'} • Shelf {row.metadata?.shelf || '?'}
         </div>
       )
     },
     {
-      key: "zone",
-      label: "Zone",
+      key: "capacity",
+      label: "Capacity",
       sortable: true,
-      render: (value: string, row: Bin) => (
-        <div className="space-y-1">
-          <div>Zone {value}</div>
-          <div className="text-xs text-muted-foreground">
-            Rack {row.metadata.rack}, Shelf {row.metadata.shelf}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: "current_count",
-      label: "Items",
-      sortable: true,
-      render: (value: number, row: Bin) => (
-        <div className="flex items-center gap-2">
-          <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
-            <div 
+      render: (row) => {
+        const usagePercent = (row.current_count / row.capacity) * 100
+        return (
+          <div className="w-full space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="font-medium">{row.current_count} / {row.capacity}</span>
+              <span className={cn(
+                "font-medium",
+                usagePercent >= 90 ? "text-red-500" :
+                usagePercent >= 75 ? "text-yellow-500" :
+                "text-green-500"
+              )}>
+                {Math.round(usagePercent)}%
+              </span>
+            </div>
+            <Progress 
+              value={usagePercent} 
               className={cn(
-                "h-full rounded-full",
-                {
-                  'bg-green-500': (value / row.capacity) < 0.8,
-                  'bg-yellow-500': (value / row.capacity) >= 0.8 && (value / row.capacity) < 0.95,
-                  'bg-red-500': (value / row.capacity) >= 0.95,
-                }
+                usagePercent >= 90 ? "bg-red-100" :
+                usagePercent >= 75 ? "bg-yellow-100" :
+                "bg-green-100"
               )}
-              style={{ width: `${(value / row.capacity) * 100}%` }}
+              indicatorClassName={cn(
+                usagePercent >= 90 ? "bg-red-500" :
+                usagePercent >= 75 ? "bg-yellow-500" :
+                "bg-green-500"
+              )}
             />
           </div>
-          <span className="text-sm">
-            {value}/{row.capacity}
-          </span>
-        </div>
-      )
-    },
-    {
-      key: "is_active",
-      label: "Status",
-      sortable: true,
-      render: (value: boolean) => (
-        <div className={cn(
-          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-          value ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
-        )}>
-          {value ? 'Active' : 'Inactive'}
-        </div>
-      )
-    },
-    {
-      key: "qr_code",
-      label: "QR Code",
-      render: (value: string) => value || '-'
-    },
-    {
-      key: "updated_at",
-      label: "Last Updated",
-      sortable: true,
-      render: (value: string) => new Date(value).toLocaleString()
+        )
+      }
     }
   ]
 

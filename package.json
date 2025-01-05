@@ -20,6 +20,10 @@
   },
   "dependencies": {
     "nanoid": "^5.0.4",
-    "qrcode.react": "^3.1.0"
+    "qrcode.react": "^3.1.0",
+    "@mui/material": "^5.x.x",
+    "@mui/icons-material": "^5.x.x",
+    "react": "^18.x.x",
+    "@types/react": "^18.x.x"
   }
 }

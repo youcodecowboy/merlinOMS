@@ -62,35 +62,33 @@ export async function GET(request: NextRequest) {
     if (type === 'CUTTING') {
       const formattedRequests = requests.map(request => {
         console.log('API: Processing cutting request:', request.id);
-        console.log('API: Original metadata:', JSON.stringify(request.metadata, null, 2));
         
-        let metadata = request.metadata;
-        if (typeof metadata === 'string') {
-          try {
-            metadata = JSON.parse(metadata);
-          } catch (e) {
-            console.error('Failed to parse metadata string:', e);
-            metadata = {};
-          }
-        }
-        metadata = metadata || {};
-        
-        // Ensure required metadata fields exist
-        const formatted = {
-          ...request,
+        // Ensure metadata is an object
+        const metadata = typeof request.metadata === 'string' 
+          ? JSON.parse(request.metadata) 
+          : request.metadata || {};
+
+        // Ensure sku_groups is properly formatted
+        const sku_groups = Array.isArray(metadata.sku_groups) 
+          ? metadata.sku_groups.map(group => ({
+              sku: String(group.sku || ''),
+              quantity: Number(group.quantity || 0),
+              pattern_requests: Array.isArray(group.pattern_requests) ? group.pattern_requests : []
+            }))
+          : [];
+
+        return {
+          id: request.id,
+          status: request.status || 'PENDING',
+          created_at: request.created_at.toISOString(),
           metadata: {
             pattern_request_ids: Array.isArray(metadata.pattern_request_ids) ? metadata.pattern_request_ids : [],
-            sku_groups: Array.isArray(metadata.sku_groups) ? metadata.sku_groups.map(group => ({
-              sku: group.sku || 'UNKNOWN',
-              quantity: Number(group.quantity) || 0,
-              pattern_requests: Array.isArray(group.pattern_requests) ? group.pattern_requests : []
-            })) : [],
-            item_ids: Array.isArray(metadata.item_ids) ? metadata.item_ids : []
+            sku_groups,
+            item_ids: Array.isArray(metadata.item_ids) ? metadata.item_ids : [],
+            started_at: metadata.started_at,
+            completion: metadata.completion
           }
         };
-        
-        console.log('API: Formatted request:', JSON.stringify(formatted, null, 2));
-        return formatted;
       });
 
       console.log('API: Final formatted cutting requests:', JSON.stringify(formattedRequests, null, 2));
@@ -145,6 +143,43 @@ export async function GET(request: NextRequest) {
       { 
         error: error instanceof Error ? error.message : 'Failed to fetch requests',
         requests: []
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { type, status, metadata } = body;
+
+    if (!type) {
+      return NextResponse.json(
+        { error: 'Request type is required' },
+        { status: 400 }
+      );
+    }
+
+    const newRequest = await prisma.request.create({
+      data: {
+        type,
+        status: status || 'PENDING',
+        metadata
+      }
+    });
+
+    return NextResponse.json({
+      success: true,
+      request: newRequest
+    });
+
+  } catch (error) {
+    console.error('Error creating request:', error);
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to create request'
       },
       { status: 500 }
     );

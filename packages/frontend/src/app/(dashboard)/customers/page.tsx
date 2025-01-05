@@ -12,15 +12,7 @@ interface Customer {
   id: string
   email: string
   profile: {
-    metadata: {
-      firstName?: string
-      lastName?: string
-      phoneNumber?: string
-      company?: string
-      totalOrders?: number
-      lastOrderDate?: string
-      lifetimeValue?: number
-    }
+    metadata: Record<string, any>
   } | null
   created_at: string
   updated_at: string
@@ -48,30 +40,31 @@ const columns: CustomerColumn[] = [
     key: "profile",
     label: "Name",
     sortable: true,
-    render: (value: Customer["profile"]) => 
-      value?.metadata.firstName && value?.metadata.lastName
-        ? `${value.metadata.firstName} ${value.metadata.lastName}`
-        : "N/A"
+    render: (value: Customer["profile"]) => {
+      const firstName = value?.metadata?.firstName;
+      const lastName = value?.metadata?.lastName;
+      return firstName && lastName ? `${firstName} ${lastName}` : "N/A";
+    }
   },
   {
     key: "profile",
     label: "Company",
     render: (value: Customer["profile"]) => 
-      value?.metadata.company || "N/A"
+      value?.metadata?.company || "N/A"
   },
   {
     key: "profile",
     label: "Total Orders",
     sortable: true,
     render: (value: Customer["profile"]) =>
-      value?.metadata.totalOrders || 0
+      value?.metadata?.totalOrders || 0
   },
   {
     key: "profile",
     label: "Last Order",
     sortable: true,
     render: (value: Customer["profile"]) =>
-      value?.metadata.lastOrderDate
+      value?.metadata?.lastOrderDate
         ? new Date(value.metadata.lastOrderDate).toLocaleDateString()
         : "Never"
   },
@@ -80,7 +73,7 @@ const columns: CustomerColumn[] = [
     label: "Lifetime Value",
     sortable: true,
     render: (value: Customer["profile"]) =>
-      value?.metadata.lifetimeValue
+      value?.metadata?.lifetimeValue
         ? `$${value.metadata.lifetimeValue.toLocaleString()}`
         : "$0"
   }
@@ -116,9 +109,9 @@ export default function CustomersPage() {
   // Calculate total metrics
   const totalCustomers = customers.length
   const totalOrders = customers.reduce((sum, customer) => 
-    sum + (customer.profile?.metadata.totalOrders || 0), 0)
+    sum + (customer.profile?.metadata?.totalOrders || 0), 0)
   const totalRevenue = customers.reduce((sum, customer) => 
-    sum + (customer.profile?.metadata.lifetimeValue || 0), 0)
+    sum + (customer.profile?.metadata?.lifetimeValue || 0), 0)
   const averageOrderValue = totalOrders > 0 
     ? (totalRevenue / totalOrders).toFixed(2)
     : "0"
